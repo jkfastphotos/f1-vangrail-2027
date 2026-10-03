@@ -11,13 +11,9 @@ def init_db():
     conn = sqlite3.connect('f1_poule.db')
     cursor = conn.cursor()
     
-    # We legen de tabellen even voor een schone start met de nieuwe velden (email/telefoon)
-    cursor.execute('DROP TABLE IF EXISTS voorspellingen')
-    cursor.execute('DROP TABLE IF EXISTS gebruikers')
-    
-    # 1. Tabel voor voorspellingen
+    # 1. Tabel voor voorspellingen (behoudt data bij refresh!)
     cursor.execute('''
-        CREATE TABLE voorspellingen (
+        CREATE TABLE IF NOT EXISTS voorspellingen (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             deelnemer TEXT,
             kwali_top5 TEXT,
@@ -29,9 +25,9 @@ def init_db():
         )
     ''')
     
-    # 2. Tabel voor gebruikers, wachtwoorden, contactgegevens en goedkeuring
+    # 2. Tabel voor gebruikers, wachtwoorden, contactgegevens en goedkeuring (behoudt data bij refresh!)
     cursor.execute('''
-        CREATE TABLE gebruikers (
+        CREATE TABLE IF NOT EXISTS gebruikers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             naam TEXT UNIQUE,
             wachtwoord TEXT,
