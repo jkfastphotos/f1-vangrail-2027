@@ -4,7 +4,7 @@ import json
 import scoring
 
 # Pagina configuratie
-st.set_page_config(page_title="F1 Vangrail - FastLine 2027", layout="wide")
+st.set_page_config(page_title="F1 Vangrail - FastLine 2026", layout="wide")
 
 # --- DATABASE INITIALISATIE ---
 def init_db():
@@ -27,12 +27,12 @@ def init_db():
 
 init_db()
 
-st.title("🏁 F1 Vangrail - FastLine 2027")
+st.title("🏁 F1 Vangrail - FastLine 2026")
 
-# Zijbalk navigatie
-menu = st.sidebar.selectbox("Menu", ["Voorspelling Indienen", "Punten & Score Testen"])
+# Zijbalk navigatie (inclusief Beheer)
+menu = st.sidebar.selectbox("Menu", ["Voorspelling Indienen", "Punten & Score Testen", "Beheer"])
 
-# Lijst met coureurs voor het seizoen 2027
+# Lijst met coureurs voor het seizoen 2026
 coureurs_lijst = [
     "Max Verstappen", "Lando Norris", "Charles Leclerc", "Oscar Piastri", 
     "Lewis Hamilton", "George Russell", "Carlos Sainz", "Fernando Alonso", 
@@ -97,11 +97,8 @@ if menu == "Voorspelling Indienen":
         if submit_voorspelling:
             h2h_key = h2h_optie.replace(" ", "_")
             
-            # Opslaan in de SQLite database
             conn = sqlite3.connect('f1_poule.db')
             cursor = conn.cursor()
-            
-            # Controleer of deze deelnemer al een voorspelling heeft ingediend en update of insert
             cursor.execute("SELECT id FROM voorspellingen WHERE deelnemer = ?", (gekozen_deelnemer,))
             bestaat = cursor.fetchone()
             
@@ -161,3 +158,87 @@ elif menu == "Punten & Score Testen":
         st.write(f"- Kwalificatie punten: {kwali_pnt}")
         st.write(f"- Race punten: {race_pnt}")
         st.write(f"- Extra categorieën punten: {extra_pnt}")
+
+elif menu == "Beheer":
+    st.header("🛠️️ Beheerdersscherm - Race Resultaten & Leaderboard")
+    st.write("Voer hier de officiële uitslag in en bereken direct de scores voor alle deelnemers.")
+
+    with st.form("form_officiële_uitslag"):
+        st.subheader("1. Officiële Kwalificatie Top 5")
+        off_kwali = []
+        c1, c2 = st.columns(2)
+        for i in range(1, 6):
+            with c1 if i <= 3 else c2:
+                off_kwali.append(st.selectbox(f"Officiële Kwalificatie P{i}", coureurs_lijst, key=f"off_kwali_p{i}"))
+
+        st.subheader("2. Officiële Race Top 5")
+        off_race = []
+        c3, c4 = st.columns(2)
+        for i in range(1, 6):
+            with c3 if i <= 3 else c4:
+                off_race.append(st.selectbox(f"Officiële Race P{i}", coureurs_lijst, key=f"off_race_p{i}"))
+
+        st.subheader("3. Officiële Extra Categorieën")
+        b_col1, b_col2 = st.columns(2)
+        with b_col1:
+            off_fl = st.selectbox("Officiële Fastest Lap", coureurs_lijst, key="off_fl")
+        with b_col2:
+            off_dotd = st.selectbox("Officiële Driver of the Day", coureurs_lijst, key="off_dotd")
+        
+        off_dnf = st.multiselect("Uitvallers (DNF)", coureurs_lijst, key="off_dnf")
+        
+        st.subheader("4. Officiële Head-to-Head Uitslag")
+        off_h2h_winnaar = st.selectbox("Max Verstappen vs Lando Norris - Winnaar", ["Max Verstappen", "Lando Norris"], key="off_h2h")
+
+        bereken_leaderboard = st.form_submit_button(label="Bereken Leaderboard voor alle deelnemers")
+
+        if bereken_leaderboard:
+            officiële_uitslag = {
+                "kwali_top5": off_kwali,
+                "race_top5": off_race,
+                "fastest_lap": off_fl,
+                "driver_of_the_day": off_dotd,
+                "dnf_coureurs": off_dnf
+            }
+
+            conn = sqlite3.connect('f1_poule.db')
+            cursor = conn.cursor()
+            cursor.execute("SELECT deelnemer, kwali_top5, race_top5, fastest_lap, driver_of_the_day, dnf_coureurs, h2h_keuzes FROM voorspellingen")
+            alle_voorspellingen = cursor.fetchall()
+            conn.close()
+
+            if not alle_voorspellingen:
+                st.warning("Er zijn nog geen voorspellingen ingediend in de database om te berekenen!")
+            else:
+                st.subheader("🏆 Klassement (Leaderboard)")
+                
+                resultaten_lijst = []
+                for row in alle_voorspellingen:
+                    deelnemer, v_kwali, v_race, v_fl, v_dotd, v_dnf, v_h2h = row
+                    
+                    # Zet JSON strings om naar lijsten/dicts
+                    v_kwali_list = json.loads(v_kwali)
+                    v_race_list = json.loads(v_race)
+                    v_dnf_list = json.loads(v_dnf)
+                    v_h2h_dict = json.loads(v_h2h)
+                    
+                    # Punten berekenen
+                    pnt_kwali = scoring.bereken_top5_punten(v_kwali_list, off_kwali)
+                    pnt_race = scoring.bereken_top5_punten(v_race_list, off_race)
+                    
+                    voorspelling_dict = {
+                        "fastest_lap": v_fl,
+                        "driver_of_the_day": v_dotd,
+                        "dnf_coureurs": v_dnf_list,
+                        "h2h_keuzes": v_h2h_dict
+                    }
+                    pnt_extra = scoring.bereken_race_gebeurtenissen(voorspelling_dict, officiële_uitslag)
+                    
+                    totaal_score = pnt_kwali + pnt_race + pnt_extra
+                    resultaten_lijst.append({"Deelnemer": deelnemer, "Punten": totaal_score, "Kwali": pnt_kwali, "Race": pnt_race, "Extra": pnt_extra})
+
+                # Sorteer op punten (hoogste eerst)
+                resultaten_lijst = sorted(resultaten_lijst, key=lambda x: x["Punten"], reverse=True)
+
+                for idx, res in enumerate(resultaten_lijst, 1):
+                    st.write(f"**{idx}. {res['Deelnemer']}** — Totaal: **{res['Punten']} punten** *(Kwali: {res['Kwali']}, Race: {res['Race']}, Extra: {res['Extra']})*")
