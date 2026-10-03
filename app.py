@@ -62,18 +62,18 @@ with tab1:
     
     if auth_optie == "Nieuw account registreren":
         st.subheader("📝 Registreren voor de Poule")
-        st.info("Meld je hier aan met je gegevens. Nadat je de betaling hebt voldaan, zal de beheerder je account goedkeuren.")
+        st.info("Alle velden zijn verplicht! Nadat je de betaling hebt voldaan, zal de beheerder je account goedkeuren.")
         
-        with st.form("form_register"):
-            reg_naam = st.text_input("Jouw Volledige Naam")
-            reg_email = st.text_input("E-mailadres")
-            reg_tel = st.text_input("Telefoonnummer (voor app/betaaloverzicht)")
-            reg_ww = st.text_input("Kies een wachtwoord", type="password")
+        with st.form("form_register", clear_on_submit=True):
+            reg_naam = st.text_input("Jouw Volledige Naam *")
+            reg_email = st.text_input("E-mailadres *")
+            reg_tel = st.text_input("Telefoonnummer *")
+            reg_ww = st.text_input("Kies een wachtwoord *", type="password")
             reg_submit = st.form_submit_button("Registreren")
             
             if reg_submit:
-                if not reg_naam or not reg_email or not reg_tel or not reg_ww:
-                    st.error("Vul alle velden (naam, e-mail, telefoon en wachtwoord) in!")
+                if not reg_naam.strip() or not reg_email.strip() or not reg_tel.strip() or not reg_ww.strip():
+                    st.error("⚠️ Alle velden zijn verplicht! Vul alsjeblieft alles in.")
                 else:
                     try:
                         conn = sqlite3.connect('f1_poule.db')
@@ -84,9 +84,9 @@ with tab1:
                         )
                         conn.commit()
                         conn.close()
-                        st.success(f"Account voor {reg_naam} succesvol aangemaakt! Wacht op goedkeuring door de beheerder (na betaling).")
+                        st.success(f"Account voor {reg_naam} succesvol aangemaakt! De velden zijn geleegd. Wacht op goedkeuring door de beheerder na betaling.")
                     except sqlite3.IntegrityError:
-                        st.error("Deze naam bestaat al in het systeem. Kies een andere naam of log in.")
+                        st.error("⚠️ Deze naam bestaat al in het systeem. Kies een andere naam of log in.")
     
     else:
         st.subheader("🔑 Inloggen")
@@ -235,7 +235,7 @@ with tab3:
     if ingevoerd_wachtwoord == beheerders_wachtwoord:
         st.success("Toegang verleend tot het beheerderspaneel!")
         
-        # Goedkeuren van gebruikers na betaling (inclusief zichtbaarheid van email en telefoon)
+        # Goedkeuren van gebruikers na betaling
         st.subheader("👥 Deelnemers & Betalingen Goedkeuren")
         conn = sqlite3.connect('f1_poule.db')
         cursor = conn.cursor()
