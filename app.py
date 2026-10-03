@@ -103,7 +103,7 @@ with tab1:
                     st.warning("Jouw account is nog **niet goedgekeurd**. Zodra de betaling binnen is bij de beheerder, krijg je toegang.")
                 else:
                     st.session_state["ingelogde_gebruiker"] = login_naam
-                    st.success(Welkom terug, {login_naam}! Je bent ingelogd.)
+                    st.success(f"Welkom terug, {login_naam}! Je bent ingelogd.")
 
     # Als de gebruiker is ingelogd en goedgekeurd, tonen we het voorspellingsformulier
     if "ingelogde_gebruiker" in st.session_state:
@@ -183,12 +183,41 @@ with tab1:
                     
                 conn.commit()
                 conn.close()
-                st.success(f"Je voorspelling is succesvol opgeslagen!")
+                st.success("Je voorspelling is succesvol opgeslagen!")
 
 with tab2:
     st.header("📊 Score Berekening Testen")
-    st.write("Test hier of de puntentelling via `scoring.py` correct werkt.")
-    # (Blijft ongewijzigd voor testen)
+    st.write("Test hier of de puntentelling via `scoring.py` correct werkt op basis van een voorbeeld-uitslag.")
+
+    uitslag_voorbeeld = {
+        "kwali_top5": ["Max Verstappen", "Lando Norris", "Charles Leclerc", "Oscar Piastri", "Lewis Hamilton"],
+        "race_top5": ["Max Verstappen", "Charles Leclerc", "Lando Norris", "Oscar Piastri", "George Russell"],
+        "fastest_lap": "Max Verstappen",
+        "driver_of_the_day": "Lando Norris",
+        "dnf_coureurs": ["Sergio Perez", "Carlos Sainz"]
+    }
+
+    if st.button("Bereken testpunten"):
+        kwali_pnt = scoring.bereken_top5_punten(
+            ["Max Verstappen", "Lando Norris", "Charles Leclerc", "Oscar Piastri", "Lewis Hamilton"], 
+            uitslag_voorbeeld["kwali_top5"]
+        )
+        race_pnt = scoring.bereken_top5_punten(
+            ["Max Verstappen", "Charles Leclerc", "Lando Norris", "Oscar Piastri", "George Russell"], 
+            uitslag_voorbeeld["race_top5"]
+        )
+        extra_pnt = scoring.bereken_race_gebeurtenissen({
+            "fastest_lap": "Max Verstappen",
+            "driver_of_the_day": "Lando Norris",
+            "dnf_coureurs": ["Sergio Perez"],
+            "h2h_keuzes": {"Max_Verstappen_vs_Lando_Norris": "Max Verstappen"}
+        }, uitslag_voorbeeld)
+        
+        totaal = kwali_pnt + race_pnt + extra_pnt
+        st.success(f"Totale punten berekend: {totaal}")
+        st.write(f"- Kwalificatie punten: {kwali_pnt}")
+        st.write(f"- Race punten: {race_pnt}")
+        st.write(f"- Extra categorieën punten: {extra_pnt}")
 
 with tab3:
     st.header("🛠 Beheerdersscherm")
@@ -249,7 +278,7 @@ with tab3:
             with b_col1:
                 off_fl = st.selectbox("Officiële Fastest Lap", coureurs_lijst, key="off_fl")
             with b_col2:
-                off_dotd = st.selectbox("Officiële Driver of the Day", coureurs_lijst, key="dotd")
+                off_dotd = st.selectbox("Officiële Driver of the Day", coureurs_lijst, key="off_dotd")
             
             off_dnf = st.multiselect("Uitvallers (DNF)", coureurs_lijst, key="off_dnf")
             
