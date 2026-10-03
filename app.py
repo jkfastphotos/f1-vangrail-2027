@@ -4,7 +4,7 @@ import json
 import scoring
 
 # Pagina configuratie
-st.set_page_config(page_title="F1 Vangrail - FastLine 2026", layout="wide")
+st.set_page_config(page_title="F1 Vangrail - FastLine 2027", layout="wide")
 
 # --- DATABASE INITIALISATIE ---
 def init_db():
@@ -27,12 +27,12 @@ def init_db():
 
 init_db()
 
-st.title("🏁 F1 Vangrail - FastLine 2026")
+st.title("🏁 F1 Vangrail - FastLine 2027")
 
 # Zijbalk navigatie (inclusief Beheer)
 menu = st.sidebar.selectbox("Menu", ["Voorspelling Indienen", "Punten & Score Testen", "Beheer"])
 
-# Lijst met coureurs voor het seizoen 2026
+# Lijst met coureurs voor het seizoen 2027
 coureurs_lijst = [
     "Max Verstappen", "Lando Norris", "Charles Leclerc", "Oscar Piastri", 
     "Lewis Hamilton", "George Russell", "Carlos Sainz", "Fernando Alonso", 
@@ -160,7 +160,7 @@ elif menu == "Punten & Score Testen":
         st.write(f"- Extra categorieën punten: {extra_pnt}")
 
 elif menu == "Beheer":
-    st.header("🛠️️ Beheerdersscherm - Race Resultaten & Leaderboard")
+    st.header("🛠 Beheerdersscherm - Race Resultaten & Leaderboard")
     st.write("Voer hier de officiële uitslag in en bereken direct de scores voor alle deelnemers.")
 
     with st.form("form_officiële_uitslag"):
@@ -216,13 +216,11 @@ elif menu == "Beheer":
                 for row in alle_voorspellingen:
                     deelnemer, v_kwali, v_race, v_fl, v_dotd, v_dnf, v_h2h = row
                     
-                    # Zet JSON strings om naar lijsten/dicts
                     v_kwali_list = json.loads(v_kwali)
                     v_race_list = json.loads(v_race)
                     v_dnf_list = json.loads(v_dnf)
                     v_h2h_dict = json.loads(v_h2h)
                     
-                    # Punten berekenen
                     pnt_kwali = scoring.bereken_top5_punten(v_kwali_list, off_kwali)
                     pnt_race = scoring.bereken_top5_punten(v_race_list, off_race)
                     
@@ -237,7 +235,6 @@ elif menu == "Beheer":
                     totaal_score = pnt_kwali + pnt_race + pnt_extra
                     resultaten_lijst.append({"Deelnemer": deelnemer, "Punten": totaal_score, "Kwali": pnt_kwali, "Race": pnt_race, "Extra": pnt_extra})
 
-                # Sorteer op punten (hoogste eerst)
                 resultaten_lijst = sorted(resultaten_lijst, key=lambda x: x["Punten"], reverse=True)
 
                 for idx, res in enumerate(resultaten_lijst, 1):
