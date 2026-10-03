@@ -29,9 +29,6 @@ init_db()
 
 st.title("🏁 F1 Vangrail - FastLine 2027")
 
-# Zijbalk navigatie (inclusief Beheer)
-menu = st.sidebar.selectbox("Menu", ["Voorspelling Indienen", "Punten & Score Testen", "Beheer"])
-
 # Lijst met coureurs voor het seizoen 2027
 coureurs_lijst = [
     "Max Verstappen", "Lando Norris", "Charles Leclerc", "Oscar Piastri", 
@@ -45,10 +42,14 @@ deelnemers_lijst = [
     "Tamara van Rijt", "John Slaats", "Linda Wijnen", "Rob van Heugten"
 ]
 
-if menu == "Voorspelling Indienen":
+# Tabbladen in plaats van de zijbalk
+tab1, tab2, tab3 = st.tabs(["✍️ Voorspelling Indienen", "📊 Punten & Score Testen", "🛠 Beheer"])
+
+with tab1:
     st.header("✍️ Race Voorspelling Indienen")
     
-    gekozen_deelnemer = st.sidebar.selectbox("Kies jouw naam:", deelnemers_lijst)
+    # Deelnemer selecteren via een normale selectbox op de pagina zelf (of via de zijbalk als je dat handiger vindt, hier nu netjes op de pagina)
+    gekozen_deelnemer = st.selectbox("Kies jouw naam:", deelnemers_lijst)
     st.write(f"Voorspelling indienen voor: **{gekozen_deelnemer}**")
 
     with st.form("form_race_voorspelling"):
@@ -125,7 +126,7 @@ if menu == "Voorspelling Indienen":
             
             st.success(f"Bedankt {gekozen_deelnemer}! Je voorspelling is succesvol opgeslagen in de database.")
 
-elif menu == "Punten & Score Testen":
+with tab2:
     st.header("📊 Score Berekening Testen")
     st.write("Test hier of de puntentelling via `scoring.py` correct werkt op basis van een voorbeeld-uitslag.")
 
@@ -159,7 +160,7 @@ elif menu == "Punten & Score Testen":
         st.write(f"- Race punten: {race_pnt}")
         st.write(f"- Extra categorieën punten: {extra_pnt}")
 
-elif menu == "Beheer":
+with tab3:
     st.header("🛠 Beheerdersscherm - Race Resultaten & Leaderboard")
     st.write("Voer hier de officiële uitslag in en bereken direct de scores voor alle deelnemers.")
 
