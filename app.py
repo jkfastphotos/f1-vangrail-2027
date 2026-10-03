@@ -25,12 +25,14 @@ def init_db():
         )
     ''')
     
-    # 2. Tabel voor gebruikers, wachtwoorden en goedkeuring na betaling
+    # 2. Tabel voor gebruikers, wachtwoorden, contactgegevens en goedkeuring
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS gebruikers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             naam TEXT UNIQUE,
             wachtwoord TEXT,
+            email TEXT,
+            telefoon TEXT,
             is_goedgekeurd INTEGER DEFAULT 0
         )
     ''')
@@ -56,25 +58,30 @@ with tab1:
     st.header("✍️ Deelnemers Portaal")
     
     # Keuze tussen Inloggen of Registreren
-    auth_optie = st.radio("Kies een optie:", ["Inloggen", "Nieuw account registreren (Naam opgeven)"], horizontal=True)
+    auth_optie = st.radio("Kies een optie:", ["Inloggen", "Nieuw account registreren"], horizontal=True)
     
-    if auth_optie == "Nieuw account registreren (Naam opgeven)":
+    if auth_optie == "Nieuw account registreren":
         st.subheader("📝 Registreren voor de Poule")
-        st.info("Meld je hier aan. Nadat je de betaling hebt voldaan, zal de beheerder je account goedkeuren.")
+        st.info("Meld je hier aan met je gegevens. Nadat je de betaling hebt voldaan, zal de beheerder je account goedkeuren.")
         
         with st.form("form_register"):
             reg_naam = st.text_input("Jouw Volledige Naam")
+            reg_email = st.text_input("E-mailadres")
+            reg_tel = st.text_input("Telefoonnummer (voor app/betaaloverzicht)")
             reg_ww = st.text_input("Kies een wachtwoord", type="password")
             reg_submit = st.form_submit_button("Registreren")
             
             if reg_submit:
-                if not reg_naam or not reg_ww:
-                    st.error("Vul zowel je naam als een wachtwoord in!")
+                if not reg_naam or not reg_email or not reg_tel or not reg_ww:
+                    st.error("Vul alle velden (naam, e-mail, telefoon en wachtwoord) in!")
                 else:
                     try:
                         conn = sqlite3.connect('f1_poule.db')
                         cursor = conn.cursor()
-                        cursor.execute("INSERT INTO gebruikers (naam, wachtwoord, is_goedgekeurd) VALUES (?, ?, 0)", (reg_naam, reg_ww))
+                        cursor.execute(
+                            "INSERT INTO gebruikers (naam, wachtwoord, email, telefoon, is_goedgekeurd) VALUES (?, ?, ?, ?, 0)",
+                            (reg_naam, reg_ww, reg_email, reg_tel)
+                        )
                         conn.commit()
                         conn.close()
                         st.success(f"Account voor {reg_naam} succesvol aangemaakt! Wacht op goedkeuring door de beheerder (na betaling).")
@@ -228,34 +235,34 @@ with tab3:
     if ingevoerd_wachtwoord == beheerders_wachtwoord:
         st.success("Toegang verleend tot het beheerderspaneel!")
         
-        # Goedkeuren van gebruikers na betaling
+        # Goedkeuren van gebruikers na betaling (inclusief zichtbaarheid van email en telefoon)
         st.subheader("👥 Deelnemers & Betalingen Goedkeuren")
         conn = sqlite3.connect('f1_poule.db')
         cursor = conn.cursor()
-        cursor.execute("SELECT id, naam, is_goedgekeurd FROM gebruikers")
+        cursor.execute("SELECT id, naam, email, telefoon, is_goedgekeurd FROM gebruikers")
         alle_gebruikers = cursor.fetchall()
         
-        for g_id, g_naam, g_goed in alle_gebruikers:
-            col_a, col_b, col_c = st.columns([3, 2, 2])
-            with col_a:
-                st.write(f"**{g_naam}**")
-            with col_b:
-                status_txt = "✅ Goedgekeurd" if g_goed == 1 else "❌ Nog niet betaald"
-                st.write(status_txt)
-            with col_c:
-                if g_goed == 0:
-                    if st.button(f"Goedkeuren ({g_naam})", key=f"goed_{g_id}"):
-                        cursor.execute("UPDATE gebruikers SET is_goedgekeurd = 1 WHERE id = ?", (g_id,))
-                        conn.commit()
-                        st.rerun()
-                else:
-                    if st.button(f"Blokkeren ({g_naam})", key=f"blok_{g_id}"):
-                        cursor.execute("UPDATE gebruikers SET is_goedgekeurd = 0 WHERE id = ?", (g_id,))
-                        conn.commit()
-                        st.rerun()
+        for g_id, g_naam, g_email, g_tel, g_goed in alle_gebruikers:
+            with st.container():
+                st.write(f"**Naam:** {g_naam} | **E-mail:** {g_email} | **Tel:** {g_tel}")
+                col_status, col_actie = st.columns([2, 2])
+                with col_status:
+                    status_txt = "✅ Goedgekeurd" if g_goed == 1 else "❌ Nog niet betaald"
+                    st.write(f"Status: {status_txt}")
+                with col_actie:
+                    if g_goed == 0:
+                        if st.button(f"Goedkeuren ({g_naam})", key=f"goed_{g_id}"):
+                            cursor.execute("UPDATE gebruikers SET is_goedgekeurd = 1 WHERE id = ?", (g_id,))
+                            conn.commit()
+                            st.rerun()
+                    else:
+                        if st.button(f"Blokkeren ({g_naam})", key=f"blok_{g_id}"):
+                            cursor.execute("UPDATE gebruikers SET is_goedgekeurd = 0 WHERE id = ?", (g_id,))
+                            conn.commit()
+                            st.rerun()
+                st.markdown("---")
         conn.close()
 
-        st.markdown("---")
         st.subheader("🏁 Officiële Uitslag & Leaderboard Berekenen")
         
         with st.form("form_officiële_uitslag"):
