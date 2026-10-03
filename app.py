@@ -163,12 +163,22 @@ with tab3:
     st.header("🛠 Beheerdersscherm")
     
     # Wachtwoordbeveiliging
-    beheerders_wachtwoord = "305710"  # Pas dit gerust aan naar jouw eigen wachtwoord
+    beheerders_wachtwoord = "305710"
     ingevoerd_wachtwoord = st.text_input("Voer het beheerderswachtwoord in:", type="password")
 
     if ingevoerd_wachtwoord == beheerders_wachtwoord:
         st.success("Toegang verleend! Je kunt hieronder de uitslag invullen.")
         
+        # Knop om database op te schonen direct zichtbaar na inloggen
+        if st.button("🗑️ Wis alle voorspellingen uit database"):
+            conn = sqlite3.connect('f1_poule.db')
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM voorspellingen")
+            conn.commit()
+            conn.close()
+            st.success("De database is volledig schoongemaakt! Alle testvoorspellingen zijn verwijderd.")
+            st.rerun()
+
         with st.form("form_officiële_uitslag"):
             st.subheader("1. Officiële Kwalificatie Top 5")
             off_kwali = []
@@ -250,11 +260,3 @@ with tab3:
         st.error("Onjuist wachtwoord! Alleen de beheerder heeft toegang tot dit scherm.")
     else:
         st.info("Voer het wachtwoord in om het beheerdersscherm te ontgrendelen.")
-# Knop om alle opgeslagen voorspellingen te wissen voor een schone start
-        if st.button("🗑️ Wis alle voorspellingen uit database"):
-            conn = sqlite3.connect('f1_poule.db')
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM voorspellingen")
-            conn.commit()
-            conn.close()
-            st.success("De database is volledig schoongemaakt! Alle testvoorspellingen zijn verwijderd.")
