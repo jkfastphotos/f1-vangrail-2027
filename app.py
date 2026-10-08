@@ -25,7 +25,7 @@ def init_db():
         )
     ''')
     
-    # 2. Tabel voor gebruikers, wachtwoorden, contactgegevens, goedkeuring en admin-rechten
+    # 2. Tabel voor gebruikers controleren en aanmaken met is_admin kolom
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS gebruikers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,6 +38,12 @@ def init_db():
         )
     ''')
     
+    # Controleer of de kolom 'is_admin' al bestaat (voor het geval de tabel al bestond)
+    cursor.execute("PRAGMA table_info(gebruikers)")
+    kolommen = [col[1] for col in cursor.fetchall()]
+    if "is_admin" not in kolommen:
+        cursor.execute("ALTER TABLE gebruikers ADD COLUMN is_admin INTEGER DEFAULT 0")
+        
     conn.commit()
     conn.close()
 
@@ -283,7 +289,7 @@ if is_admin_ingelogd:
                             conn.commit()
                             st.rerun()
                     else:
-                        if g_naam != "Admin": # Voorkom dat je jezelf per ongeluk ont-admin-t als je zo heet
+                        if g_naam != "Admin":
                             if st.button(f"Ontneem Admin", key=f"rem_admin_{g_id}"):
                                 cursor.execute("UPDATE gebruikers SET is_admin = 0 WHERE id = ?", (g_id,))
                                 conn.commit()
