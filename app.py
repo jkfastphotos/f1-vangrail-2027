@@ -6,7 +6,7 @@ import scoring
 # Pagina configuratie
 st.set_page_config(page_title="F1 Vangrail - FastLine 2027", layout="wide")
 
-# Vaste naam die automatisch beheerder wordt bij registratie (pas dit aan naar jouw naam als je wilt)
+# Jouw naam als vaste beheerder
 ADMIN_NAAM = "Jurgen Kessels" 
 
 # --- DATABASE INITIALISATIE ---
@@ -169,7 +169,7 @@ with tab1:
         
         if auth_optie == "Nieuw account registreren":
             st.subheader("📝 Registreren voor de Poule")
-            st.info(f"Registreer je hier. Als je de naam '{ADMIN_NAAM}' gebruikt, word je automatisch beheerder!")
+            st.info(f"Alle velden zijn verplicht! Als je inlogt als '{ADMIN_NAAM}', krijg je automatisch beheerdersrechten.")
             
             with st.form("form_register", clear_on_submit=True):
                 reg_naam = st.text_input("Jouw Volledige Naam *")
@@ -182,7 +182,6 @@ with tab1:
                     if not reg_naam.strip() or not reg_email.strip() or not reg_tel.strip() or not reg_ww.strip():
                         st.error("⚠️ Alle velden zijn verplicht! Vul alsjeblieft alles in.")
                     else:
-                        # Als de naam gelijk is aan ADMIN_NAAM, krijgt deze direct is_goedgekeurd = 1 en is_admin = 1
                         is_adm = 1 if reg_naam.strip().lower() == ADMIN_NAAM.lower() else 0
                         is_goed = 1 if is_adm == 1 else 0
                         
@@ -195,10 +194,7 @@ with tab1:
                             )
                             conn.commit()
                             conn.close()
-                            if is_adm == 1:
-                                st.success(f"Beheerdersaccount voor {reg_naam} succesvol aangemaakt! Je kunt nu direct inloggen.")
-                            else:
-                                st.success(f"Account voor {reg_naam} succesvol aangemaakt! Wacht op goedkeuring door de beheerder na betaling.")
+                            st.success(f"Account voor {reg_naam} succesvol aangemaakt!")
                         except sqlite3.IntegrityError:
                             st.error("⚠️ Deze naam bestaat al in het systeem. Kies een andere naam of log in.")
         
@@ -212,6 +208,12 @@ with tab1:
                 if login_submit:
                     conn = sqlite3.connect('f1_poule.db')
                     cursor = conn.cursor()
+                    
+                    # Controleer of dit de admin-naam is en pas direct de database aan indien nodig
+                    if login_naam.strip().lower() == ADMIN_NAAM.lower():
+                        cursor.execute("UPDATE gebruikers SET is_admin = 1, is_goedgekeurd = 1 WHERE naam = ?", (login_naam,))
+                        conn.commit()
+                    
                     cursor.execute("SELECT wachtwoord, is_goedgekeurd, is_admin FROM gebruikers WHERE naam = ?", (login_naam,))
                     res = cursor.fetchone()
                     conn.close()
@@ -223,7 +225,13 @@ with tab1:
                     else:
                         st.session_state["ingelogde_gebruiker"] = login_naam
                         st.session_state["is_goedgekeurd"] = res[1]
-                        st.session_state["is_admin"] = res[2]
+                        # Forceer direct admin in session_state als het om Jurgen Kessels gaat
+                        if login_naam.strip().lower() == ADMIN_NAAM.lower():
+                            st.session_state["is_admin"] = 1
+                            st.session_state["is_goedgekeurd"] = 1
+                        else:
+                            st.session_state["is_admin"] = res[2]
+                            
                         st.success(f"Welkom terug, {login_naam}!")
                         st.rerun()
 
