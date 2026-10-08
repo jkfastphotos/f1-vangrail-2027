@@ -19,7 +19,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS voorspellingen (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             deelnemer TEXT,
-            kwali_top5 TEXT,
+            kwali_top3 TEXT,
             race_top5 TEXT,
             fastest_lap TEXT,
             driver_of_the_day TEXT,
@@ -92,14 +92,12 @@ with tab1:
             st.subheader(f"🎯 Voorspelling indienen voor: **{huidige_gebruiker}**")
 
             with st.form("form_race_voorspelling"):
-                # 1. Kwalificatie Top 5
-                st.subheader("1. Kwalificatie Top 5")
-                kwali_top5 = []
-                col1, col2 = st.columns(2)
-                for i in range(1, 6):
-                    with col1 if i <= 3 else col2:
-                        c = st.selectbox(f"Kwalificatie P{i}", coureurs_lijst, key=f"kwali_p{i}")
-                        kwali_top5.append(c)
+                # 1. Kwalificatie Top 3 (Aangepast van Top 5 naar Top 3)
+                st.subheader("1. Kwalificatie Top 3")
+                kwali_top3 = []
+                for i in range(1, 4):
+                    c = st.selectbox(f"Kwalificatie P{i}", coureurs_lijst, key=f"kwali_p{i}")
+                    kwali_top3.append(c)
 
                 # 2. Race Top 5
                 st.subheader("2. Race Top 5")
@@ -142,18 +140,18 @@ with tab1:
                     if bestaat:
                         cursor.execute('''
                             UPDATE voorspellingen 
-                            SET kwali_top5 = ?, race_top5 = ?, fastest_lap = ?, driver_of_the_day = ?, dnf_coureurs = ?, h2h_keuzes = ?
+                            SET kwali_top3 = ?, race_top5 = ?, fastest_lap = ?, driver_of_the_day = ?, dnf_coureurs = ?, h2h_keuzes = ?
                             WHERE deelnemer = ?
                         ''', (
-                            json.dumps(kwali_top5), json.dumps(race_top5), fastest_lap, driver_of_the_day, 
+                            json.dumps(kwali_top3), json.dumps(race_top5), fastest_lap, driver_of_the_day, 
                             json.dumps(dnf_coureurs), json.dumps({h2h_key: h2h_winnaar}), huidige_gebruiker
                         ))
                     else:
                         cursor.execute('''
-                            INSERT INTO voorspellingen (deelnemer, kwali_top5, race_top5, fastest_lap, driver_of_the_day, dnf_coureurs, h2h_keuzes)
+                            INSERT INTO voorspellingen (deelnemer, kwali_top3, race_top5, fastest_lap, driver_of_the_day, dnf_coureurs, h2h_keuzes)
                             VALUES (?, ?, ?, ?, ?, ?, ?)
                         ''', (
-                            huidige_gebruiker, json.dumps(kwali_top5), json.dumps(race_top5), fastest_lap, 
+                            huidige_gebruiker, json.dumps(kwali_top3), json.dumps(race_top5), fastest_lap, 
                             driver_of_the_day, json.dumps(dnf_coureurs), json.dumps({h2h_key: h2h_winnaar})
                         ))
                         
@@ -209,7 +207,6 @@ with tab1:
                     conn = sqlite3.connect('f1_poule.db')
                     cursor = conn.cursor()
                     
-                    # Controleer of dit de admin-naam is en pas direct de database aan indien nodig
                     if login_naam.strip().lower() == ADMIN_NAAM.lower():
                         cursor.execute("UPDATE gebruikers SET is_admin = 1, is_goedgekeurd = 1 WHERE naam = ?", (login_naam,))
                         conn.commit()
@@ -225,7 +222,6 @@ with tab1:
                     else:
                         st.session_state["ingelogde_gebruiker"] = login_naam
                         st.session_state["is_goedgekeurd"] = res[1]
-                        # Forceer direct admin in session_state als het om Jurgen Kessels gaat
                         if login_naam.strip().lower() == ADMIN_NAAM.lower():
                             st.session_state["is_admin"] = 1
                             st.session_state["is_goedgekeurd"] = 1
@@ -240,7 +236,7 @@ with tab2:
     st.write("Test hier of de puntentelling via `scoring.py` correct werkt op basis van een voorbeeld-uitslag.")
 
     uitslag_voorbeeld = {
-        "kwali_top5": ["Max Verstappen", "Lando Norris", "Charles Leclerc", "Oscar Piastri", "Lewis Hamilton"],
+        "kwali_top3": ["Max Verstappen", "Lando Norris", "Charles Leclerc"],
         "race_top5": ["Max Verstappen", "Charles Leclerc", "Lando Norris", "Oscar Piastri", "George Russell"],
         "fastest_lap": "Max Verstappen",
         "driver_of_the_day": "Lando Norris",
@@ -249,8 +245,8 @@ with tab2:
 
     if st.button("Bereken testpunten"):
         kwali_pnt = scoring.bereken_top5_punten(
-            ["Max Verstappen", "Lando Norris", "Charles Leclerc", "Oscar Piastri", "Lewis Hamilton"], 
-            uitslag_voorbeeld["kwali_top5"]
+            ["Max Verstappen", "Lando Norris", "Charles Leclerc"], 
+            uitslag_voorbeeld["kwali_top3"]
         )
         race_pnt = scoring.bereken_top5_punten(
             ["Max Verstappen", "Charles Leclerc", "Lando Norris", "Oscar Piastri", "George Russell"], 
@@ -265,7 +261,7 @@ with tab2:
         
         totaal = kwali_pnt + race_pnt + extra_pnt
         st.success(f"Totale punten berekend: {totaal}")
-        st.write(f"- Kwalificatie punten: {kwali_pnt}")
+        st.write(f"- Kwalificatie punten (Top 3): {kwali_pnt}")
         st.write(f"- Race punten: {race_pnt}")
         st.write(f"- Extra categorieën punten: {extra_pnt}")
 
@@ -319,12 +315,10 @@ if is_admin_ingelogd:
         st.subheader("🏁 Officiële Uitslag & Leaderboard Berekenen")
         
         with st.form("form_officiële_uitslag"):
-            st.subheader("1. Officiële Kwalificatie Top 5")
+            st.subheader("1. Officiële Kwalificatie Top 3")
             off_kwali = []
-            c1, c2 = st.columns(2)
-            for i in range(1, 6):
-                with c1 if i <= 3 else c2:
-                    off_kwali.append(st.selectbox(f"Officiële Kwalificatie P{i}", coureurs_lijst, key=f"off_kwali_p{i}"))
+            for i in range(1, 4):
+                off_kwali.append(st.selectbox(f"Officiële Kwalificatie P{i}", coureurs_lijst, key=f"off_kwali_p{i}"))
 
             st.subheader("2. Officiële Race Top 5")
             off_race = []
@@ -346,7 +340,7 @@ if is_admin_ingelogd:
 
             if bereken_leaderboard:
                 officiële_uitslag = {
-                    "kwali_top5": off_kwali,
+                    "kwali_top3": off_kwali,
                     "race_top5": off_race,
                     "fastest_lap": off_fl,
                     "driver_of_the_day": off_dotd,
@@ -355,7 +349,7 @@ if is_admin_ingelogd:
 
                 conn = sqlite3.connect('f1_poule.db')
                 cursor = conn.cursor()
-                cursor.execute("SELECT deelnemer, kwali_top5, race_top5, fastest_lap, driver_of_the_day, dnf_coureurs, h2h_keuzes FROM voorspellingen")
+                cursor.execute("SELECT deelnemer, kwali_top3, race_top5, fastest_lap, driver_of_the_day, dnf_coureurs, h2h_keuzes FROM voorspellingen")
                 alle_voorspellingen = cursor.fetchall()
                 conn.close()
 
