@@ -92,7 +92,7 @@ with tab1:
             st.subheader(f"🎯 Voorspelling indienen voor: **{huidige_gebruiker}**")
 
             with st.form("form_race_voorspelling"):
-                # 1. Kwalificatie Top 3 (Aangepast van Top 5 naar Top 3)
+                # 1. Kwalificatie Top 3
                 st.subheader("1. Kwalificatie Top 3")
                 kwali_top3 = []
                 for i in range(1, 4):
@@ -118,46 +118,59 @@ with tab1:
                 
                 dnf_coureurs = st.multiselect("Failed to Finish / DNF (15 pt per correcte coureur)", coureurs_lijst, key="dnf")
 
-                # 4. Head-to-Head
+                # 4. Head-to-Head (Aangepast: Vrij duel kiezen uit alle coureurs)
                 st.subheader("4. Head-to-Head (15 pt)")
-                h2h_optie = st.selectbox(
-                    "Kies het duel:",
-                    ["Max Verstappen vs Lando Norris", "Charles Leclerc vs Oscar Piastri"],
-                    key="h2h_duel"
+                st.write("Kies de twee coureurs voor het duel van deze Grand Prix:")
+                h2h_c1_col, h2h_c2_col = st.columns(2)
+                with h2h_c1_col:
+                    h2h_coureur_a = st.selectbox("Coureur A", coureurs_lijst, index=0, key="h2h_a")
+                with h2h_c2_col:
+                    # Standaard index 1 (tweede coureur) zodat ze niet direct hetzelfde zijn
+                    h2h_coureur_b = st.selectbox("Coureur B", coureurs_lijst, index=1, key="h2h_b")
+
+                if h2h_coureur_a == h2h_coureur_b:
+                    st.warning("⚠️ Kies twee verschillende coureurs voor het Head-to-Head duel!")
+
+                h2h_winnaar = st.radio(
+                    "Wie verslaat wie in dit duel?", 
+                    [h2h_coureur_a, h2h_coureur_b], 
+                    key="h2h_winnaar"
                 )
-                h2h_winnaar = st.radio("Wie verslaat wie in dit duel?", h2h_optie.split(" vs "), key="h2h_winnaar")
 
                 submit_voorspelling = st.form_submit_button(label="Mijn Voorspelling Opslaan")
 
                 if submit_voorspelling:
-                    h2h_key = h2h_optie.replace(" ", "_")
-                    
-                    conn = sqlite3.connect('f1_poule.db')
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT id FROM voorspellingen WHERE deelnemer = ?", (huidige_gebruiker,))
-                    bestaat = cursor.fetchone()
-                    
-                    if bestaat:
-                        cursor.execute('''
-                            UPDATE voorspellingen 
-                            SET kwali_top3 = ?, race_top5 = ?, fastest_lap = ?, driver_of_the_day = ?, dnf_coureurs = ?, h2h_keuzes = ?
-                            WHERE deelnemer = ?
-                        ''', (
-                            json.dumps(kwali_top3), json.dumps(race_top5), fastest_lap, driver_of_the_day, 
-                            json.dumps(dnf_coureurs), json.dumps({h2h_key: h2h_winnaar}), huidige_gebruiker
-                        ))
+                    if h2h_coureur_a == h2h_coureur_b:
+                        st.error("Kan niet opslaan: kies twee unieke coureurs voor het duel.")
                     else:
-                        cursor.execute('''
-                            INSERT INTO voorspellingen (deelnemer, kwali_top3, race_top5, fastest_lap, driver_of_the_day, dnf_coureurs, h2h_keuzes)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        ''', (
-                            huidige_gebruiker, json.dumps(kwali_top3), json.dumps(race_top5), fastest_lap, 
-                            driver_of_the_day, json.dumps(dnf_coureurs), json.dumps({h2h_key: h2h_winnaar})
-                        ))
+                        h2h_key = f"{h2h_coureur_a}_vs_{h2h_coureur_b}".replace(" ", "_")
                         
-                    conn.commit()
-                    conn.close()
-                    st.success("Je voorspelling is succesvol opgeslagen!")
+                        conn = sqlite3.connect('f1_poule.db')
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT id FROM voorspellingen WHERE deelnemer = ?", (huidige_gebruiker,))
+                        bestaat = cursor.fetchone()
+                        
+                        if bestaat:
+                            cursor.execute('''
+                                UPDATE voorspellingen 
+                                SET kwali_top3 = ?, race_top5 = ?, fastest_lap = ?, driver_of_the_day = ?, dnf_coureurs = ?, h2h_keuzes = ?
+                                WHERE deelnemer = ?
+                            ''', (
+                                json.dumps(kwali_top3), json.dumps(race_top5), fastest_lap, driver_of_the_day, 
+                                json.dumps(dnf_coureurs), json.dumps({h2h_key: h2h_winnaar}), huidige_gebruiker
+                            ))
+                        else:
+                            cursor.execute('''
+                                INSERT INTO voorspellingen (deelnemer, kwali_top3, race_top5, fastest_lap, driver_of_the_day, dnf_coureurs, h2h_keuzes)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)
+                            ''', (
+                                huidige_gebruiker, json.dumps(kwali_top3), json.dumps(race_top5), fastest_lap, 
+                                driver_of_the_day, json.dumps(dnf_coureurs), json.dumps({h2h_key: h2h_winnaar})
+                            ))
+                            
+                        conn.commit()
+                        conn.close()
+                        st.success("Je voorspelling is succesvol opgeslagen!")
         else:
             st.warning("Jouw account is nog **niet goedgekeurd** door de beheerder (wacht op betaling). Zodra dit in orde is, verschijnt hier je voorspellingsformulier.")
 
