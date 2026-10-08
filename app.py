@@ -27,6 +27,12 @@ def init_db():
         )
     ''')
     
+    # Zorg dat email uniek is als de tabel al bestond zonder UNIQUE constraint
+    try:
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_gebruikers_email ON gebruikers(email)")
+    except sqlite3.OperationalError:
+        pass
+
     # 2. Tabel voor coureurs
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS coureurs (
@@ -70,7 +76,7 @@ def init_db():
     cursor.execute("SELECT * FROM gebruikers WHERE email = 'admin@f1vangrail.nl'")
     if not cursor.fetchone():
         cursor.execute('''
-            INSERT INTO gebruikers (naam, wachtwoord, email, telefoon, is_goedgekeurd, is_admin)
+            INSERT OR IGNORE INTO gebruikers (naam, wachtwoord, email, telefoon, is_goedgekeurd, is_admin)
             VALUES (?, ?, ?, ?, ?, ?)
         ''', (ADMIN_NAAM, "admin123", "admin@f1vangrail.nl", "0612345678", 1, 1))
         conn.commit()
@@ -86,7 +92,7 @@ def init_db():
             ("Fernando Alonso", "Aston Martin"), ("Sergio Perez", "Red Bull Racing"),
             ("Alexander Albon", "Williams"), ("Liam Lawson", "RB")
         ]
-        cursor.executemany("INSERT INTO coureurs (naam, team) VALUES (?, ?)", default_coureurs)
+        cursor.executemany("INSERT OR IGNORE INTO coureurs (naam, team) VALUES (?, ?)", default_coureurs)
         conn.commit()
 
     # Standaard races vullen als de tabel leeg is
@@ -97,7 +103,7 @@ def init_db():
             ("Chinese GP", "2027-04-04", 1),  # Voorbeeld Sprintweekend
             ("Monaco GP", "2027-05-23", 0)
         ]
-        cursor.executemany("INSERT INTO races (naam, datum, is_sprint) VALUES (?, ?, ?)", default_races)
+        cursor.executemany("INSERT OR IGNORE INTO races (naam, datum, is_sprint) VALUES (?, ?, ?)", default_races)
         conn.commit()
         
     conn.close()
