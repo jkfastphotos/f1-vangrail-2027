@@ -127,7 +127,7 @@ if not st.session_state.logged_in:
                     st.session_state.user_id = user[0]
                     st.session_state.user_name = user[1]
                     st.session_state.is_admin = bool(user[3])
-                    st.success(Welkom terug, {user[1]}!)
+                    st.success(f"Welkom terug, {user[1]}!")
                     st.rerun()
                 else:
                     st.warning("Je account is nog niet goedgekeurd door de beheerder.")
@@ -187,7 +187,7 @@ else:
         st.header("🏁 Grand Prix Voorspellingen")
         
         if not races_data:
-        v    st.info("Geen races beschikbaar in de kalender.")
+            st.info("Geen races beschikbaar in de kalender.")
         else:
             race_dict = {f"{r[1]} {'(Sprintweekend)' if r[2]==1 else ''}": r[0] for r in races_data}
             selected_race_label = st.selectbox("Selecteer Race", list(race_dict.keys()))
