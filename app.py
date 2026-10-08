@@ -6,6 +6,9 @@ import scoring
 # Pagina configuratie
 st.set_page_config(page_title="F1 Vangrail - FastLine 2027", layout="wide")
 
+# Vaste naam die automatisch beheerder wordt bij registratie (pas dit aan naar jouw naam als je wilt)
+ADMIN_NAAM = "Jurgen Kessels" 
+
 # --- DATABASE INITIALISATIE ---
 def init_db():
     conn = sqlite3.connect('f1_poule.db')
@@ -38,7 +41,7 @@ def init_db():
         )
     ''')
     
-    # Controleer of de kolom 'is_admin' al bestaat (voor het geval de tabel al bestond)
+    # Controleer of de kolom 'is_admin' al bestaat
     cursor.execute("PRAGMA table_info(gebruikers)")
     kolommen = [col[1] for col in cursor.fetchall()]
     if "is_admin" not in kolommen:
@@ -80,6 +83,7 @@ with tab1:
             if st.button("Uitloggen"):
                 del st.session_state["ingelogde_gebruiker"]
                 st.session_state["is_admin"] = 0
+                st.session_state["is_goedgekeurd"] = 0
                 st.rerun()
                 
         # Als de gebruiker goedgekeurd is, tonen we het voorspellingsformulier
@@ -165,7 +169,7 @@ with tab1:
         
         if auth_optie == "Nieuw account registreren":
             st.subheader("📝 Registreren voor de Poule")
-            st.info("Alle velden zijn verplicht! Nadat je de betaling hebt voldaan, zal de beheerder je account goedkeuren.")
+            st.info(f"Registreer je hier. Als je de naam '{ADMIN_NAAM}' gebruikt, word je automatisch beheerder!")
             
             with st.form("form_register", clear_on_submit=True):
                 reg_naam = st.text_input("Jouw Volledige Naam *")
@@ -178,16 +182,23 @@ with tab1:
                     if not reg_naam.strip() or not reg_email.strip() or not reg_tel.strip() or not reg_ww.strip():
                         st.error("⚠️ Alle velden zijn verplicht! Vul alsjeblieft alles in.")
                     else:
+                        # Als de naam gelijk is aan ADMIN_NAAM, krijgt deze direct is_goedgekeurd = 1 en is_admin = 1
+                        is_adm = 1 if reg_naam.strip().lower() == ADMIN_NAAM.lower() else 0
+                        is_goed = 1 if is_adm == 1 else 0
+                        
                         try:
                             conn = sqlite3.connect('f1_poule.db')
                             cursor = conn.cursor()
                             cursor.execute(
-                                "INSERT INTO gebruikers (naam, wachtwoord, email, telefoon, is_goedgekeurd, is_admin) VALUES (?, ?, ?, ?, 0, 0)",
-                                (reg_naam, reg_ww, reg_email, reg_tel)
+                                "INSERT INTO gebruikers (naam, wachtwoord, email, telefoon, is_goedgekeurd, is_admin) VALUES (?, ?, ?, ?, ?, ?)",
+                                (reg_naam, reg_ww, reg_email, reg_tel, is_goed, is_adm)
                             )
                             conn.commit()
                             conn.close()
-                            st.success(f"Account voor {reg_naam} succesvol aangemaakt! Wacht op goedkeuring door de beheerder na betaling.")
+                            if is_adm == 1:
+                                st.success(f"Beheerdersaccount voor {reg_naam} succesvol aangemaakt! Je kunt nu direct inloggen.")
+                            else:
+                                st.success(f"Account voor {reg_naam} succesvol aangemaakt! Wacht op goedkeuring door de beheerder na betaling.")
                         except sqlite3.IntegrityError:
                             st.error("⚠️ Deze naam bestaat al in het systeem. Kies een andere naam of log in.")
         
@@ -289,7 +300,7 @@ if is_admin_ingelogd:
                             conn.commit()
                             st.rerun()
                     else:
-                        if g_naam != "Admin":
+                        if g_naam.lower() != ADMIN_NAAM.lower():
                             if st.button(f"Ontneem Admin", key=f"rem_admin_{g_id}"):
                                 cursor.execute("UPDATE gebruikers SET is_admin = 0 WHERE id = ?", (g_id,))
                                 conn.commit()
