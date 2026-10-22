@@ -219,8 +219,16 @@ with tab1:
                     conn = sqlite3.connect('f1_poule.db')
                     cursor = conn.cursor()
                     
+                    # Als het om de admin gaat, zorgen we dat deze altijd bestaat en adminrechten heeft
                     if login_naam.strip().lower() == ADMIN_NAAM.lower():
-                        cursor.execute("UPDATE gebruikers SET is_admin = 1, is_goedgekeurd = 1 WHERE naam = ?", (login_naam,))
+                        cursor.execute("SELECT id FROM gebruikers WHERE naam = ?", (login_naam,))
+                        if not cursor.fetchone():
+                            cursor.execute(
+                                "INSERT INTO gebruikers (naam, wachtwoord, email, telefoon, is_goedgekeurd, is_admin) VALUES (?, ?, ?, ?, 1, 1)",
+                                (ADMIN_NAAM, "305710", "admin@f1vangrail.nl", "0612345678")
+                            )
+                        else:
+                            cursor.execute("UPDATE gebruikers SET is_admin = 1, is_goedgekeurd = 1 WHERE naam = ?", (login_naam,))
                         conn.commit()
                     
                     cursor.execute("SELECT wachtwoord, is_goedgekeurd, is_admin FROM gebruikers WHERE naam = ?", (login_naam,))
@@ -320,3 +328,86 @@ if is_admin_ingelogd:
                                 conn.commit()
                                 st.rerun()
                 st.markdown("---")
+        conn.close()
+
+        st.subheader("🏁 Officiële Uitslag & Leaderboard Berekenen")
+        
+        with st.form("form_officiële_uitslag"):
+            st.subheader("1. Officiële Kwalificatie Top 3")
+            off_kwali = []
+            for i in range(1, 4):
+                off_kwali.append(st.selectbox(f"Officiële Kwalificatie P{i}", coureurs_lijst, key=f"off_kwali_p{i}"))
+
+            st.subheader("2. Officiële Race Top 5")
+            off_race = []
+            c3, c4 = st.columns(2)
+            for i in range(1, 6):
+                with c3 if i <= 3 else c4:
+                    off_race.append(st.selectbox(f"Officiële Race P{i}", coureurs_lijst, key=f"off_race_p{i}"))
+
+            st.subheader("3. Officiële Extra Categorieën")
+            b_col1, b_col2 = st.columns(2)
+            with b_col1:
+                off_fl = st.selectbox("Officiële Fastest Lap", coureurs_lijst, key="off_fl")
+            with b_col2:
+                off_dotd = st.selectbox("Officiële Driver of the Day", coureurs_lijst, key="off_dotd")
+            
+            off_dnf = st.multiselect("Uitvallers (DNF)", coureurs_lijst, key="off_dnf")
+            
+            bereken_leaderboard = st.form_submit_button(label="Bereken Leaderboard")
+
+            if bereken_leaderboard:
+                officiële_uitslag = {
+                    "kwali_top3": off_kwali,
+                    "race_top5": off_race,
+                    "fastest_lap": off_fl,
+                    "driver_of_the_day": off_dotd,
+                    "dnf_coureurs": off_dnf
+                }
+
+                conn = sqlite3.connect('f1_poule.db')
+                cursor = conn.cursor()
+                cursor.execute("SELECT deelnemer, kwali_top3, race_top5, fastest_lap, driver_of_the_day, dnf_coureurs, h2h_keuzes FROM voorspellingen")
+                alle_voorspellingen = cursor.fetchall()
+                conn.close()
+
+                if not alle_voorspellingen:
+                    st.warning("Er zijn nog geen voorspellingen ingediend!")
+                else:
+                    st.subheader("🏆 Totaal Klassement (Leaderboard)")
+                    resultaten_lijst = []
+                    for row in alle_voorspellingen:
+                        deelnemer, v_kwali, v_race, v_fl, v_dotd, v_dnf, v_h2h = row
+                        
+                        v_kwali_list = json.loads(v_kwali)
+                        v_race_list = json.loads(v_race)
+                        v_dnf_list = json.loads(v_dnf)
+                        v_h2h_dict = json.loads(v_h2h)
+                        
+                        pnt_kwali = scoring.bereken_top5_punten(v_kwali_list, off_kwali)
+                        pnt_race = scoring.bereken_top5_punten(v_race_list, off_race)
+                        
+                        voorspelling_dict = {
+                            "fastest_lap": v_fl,
+                            "driver_of_the_day": v_dotd,
+                            "dnf_coureurs": v_dnf_list,
+                            "h2h_keuzes": v_h2h_dict
+                        }
+                        pnt_extra = scoring.bereken_race_gebeurtenissen(voorspelling_dict, officiële_uitslag)
+                        
+                        totaal_score = pnt_kwali + pnt_race + pnt_extra
+                        resultaten_lijst.append({"Deelnemer": deelnemer, "Punten": totaal_score, "Kwali": pnt_kwali, "Race": pnt_race, "Extra": pnt_extra})
+
+                    resultaten_lijst = sorted(resultaten_lijst, key=lambda x: x["Punten"], reverse=True)
+
+                    for idx, res in enumerate(resultaten_lijst, 1):
+                        st.write(f"**{idx}. {res['Deelnemer']}** — Totaal: **{res['Punten']} punten** *(Kwali: {res['Kwali']}, Race: {res['Race']}, Extra: {res['Extra']})*")
+
+        if st.button("🗑️ Wis alle voorspellingen"):
+            conn = sqlite3.connect('f1_poule.db')
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM voorspellingen")
+            conn.commit()
+            conn.close()
+            st.success("Alle voorspellingen gewist!")
+            st.rerun()
