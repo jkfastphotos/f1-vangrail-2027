@@ -6,8 +6,8 @@ import scoring
 # Pagina configuratie
 st.set_page_config(page_title="F1 Vangrail - FastLine 2027", layout="wide")
 
-# Jouw naam als vaste beheerder
-ADMIN_NAAM = "Jurgen Kessels" 
+# Jouw e-mailadres als vaste beheerder
+ADMIN_EMAIL = "j.kessels@fastphotos.nl" 
 
 # --- DATABASE INITIALISATIE ---
 def init_db():
@@ -18,8 +18,8 @@ def init_db():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS voorspellingen (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            deelnemer TEXT,
-            kwali_top3 TEXT,
+            email TEXT,
+            kwali_top5 TEXT,
             race_top5 TEXT,
             fastest_lap TEXT,
             driver_of_the_day TEXT,
@@ -28,25 +28,19 @@ def init_db():
         )
     ''')
     
-    # 2. Tabel voor gebruikers controleren en aanmaken met is_admin kolom
+    # 2. Tabel voor gebruikers op basis van e-mailadres
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS gebruikers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            naam TEXT UNIQUE,
+            naam TEXT,
             wachtwoord TEXT,
-            email TEXT,
+            email TEXT UNIQUE,
             telefoon TEXT,
             is_goedgekeurd INTEGER DEFAULT 0,
             is_admin INTEGER DEFAULT 0
         )
     ''')
     
-    # Controleer of de kolom 'is_admin' al bestaat
-    cursor.execute("PRAGMA table_info(gebruikers)")
-    kolommen = [col[1] for col in cursor.fetchall()]
-    if "is_admin" not in kolommen:
-        cursor.execute("ALTER TABLE gebruikers ADD COLUMN is_admin INTEGER DEFAULT 0")
-        
     conn.commit()
     conn.close()
 
@@ -61,16 +55,6 @@ coureurs_lijst = [
     "Sergio Perez", "Alexander Albon", "Kimi Antonelli", "Liam Lawson"
 ]
 
-# Voorbeeld van de Head-to-Head duels voor deze Grand Prix
-huidige_gp_duels = [
-    ("Lewis Hamilton", "Carlos Sainz"),
-    ("Max Verstappen", "Lando Norris"),
-    ("Fernando Alonso", "Alexander Albon"),
-    ("Sergio Perez", "Liam Lawson"),
-    ("George Russell", "Oscar Piastri"),
-    ("Charles Leclerc", "Kimi Antonelli")
-]
-
 # We controleren of de ingelogde gebruiker een admin is via de session_state
 is_admin_ingelogd = st.session_state.get("is_admin", 0) == 1
 
@@ -83,29 +67,34 @@ else:
 with tab1:
     st.header("✍️ Deelnemers Portaal")
     
-    if "ingelogde_gebruiker" in st.session_state:
-        huidige_gebruiker = st.session_state["ingelogde_gebruiker"]
-        st.success(f"Ingelogd als: **{huidige_gebruiker}**")
+    if "ingelogde_email" in st.session_state:
+        huidige_email = st.session_state["ingelogde_email"]
+        huidige_naam = st.session_state.get("ingelogde_naam", huidige_email)
+        st.success(f"Ingelogd als: **{huidige_naam}** ({huidige_email})")
         
         col_uitlog, _ = st.columns([1, 3])
         with col_uitlog:
             if st.button("Uitloggen"):
-                del st.session_state["ingelogde_gebruiker"]
+                del st.session_state["ingelogde_email"]
+                if "ingelogde_naam" in st.session_state:
+                    del st.session_state["ingelogde_naam"]
                 st.session_state["is_admin"] = 0
                 st.session_state["is_goedgekeurd"] = 0
                 st.rerun()
                 
         if st.session_state.get("is_goedgekeurd", 0) == 1:
             st.markdown(f"---")
-            st.subheader(f"🎯 Voorspelling indienen voor: **{huidige_gebruiker}**")
+            st.subheader(f"🎯 Voorspelling indienen voor: **{huidige_naam}**")
 
             with st.form("form_race_voorspelling"):
-                # 1. Kwalificatie Top 3
-                st.subheader("1. Kwalificatie Top 3")
-                kwali_top3 = []
-                for i in range(1, 4):
-                    c = st.selectbox(f"Kwalificatie P{i}", coureurs_lijst, key=f"kwali_p{i}")
-                    kwali_top3.append(c)
+                # 1. Kwalificatie Top 5
+                st.subheader("1. Kwalificatie Top 5")
+                kwali_top5 = []
+                col1, col2 = st.columns(2)
+                for i in range(1, 6):
+                    with col1 if i <= 3 else col2:
+                        c = st.selectbox(f"Kwalificatie P{i}", coureurs_lijst, key=f"kwali_p{i}")
+                        kwali_top5.append(c)
 
                 # 2. Race Top 5
                 st.subheader("2. Race Top 5")
@@ -126,44 +115,41 @@ with tab1:
                 
                 dnf_coureurs = st.multiselect("Failed to Finish / DNF (15 pt per correcte coureur)", coureurs_lijst, key="dnf")
 
-                # 4. Head-to-Head Duels
-                st.subheader("4. Head-to-Head Duels")
-                h2h_keuzes_dict = {}
-                for idx, (c1, c2) in enumerate(huidige_gp_duels):
-                    st.markdown(f"**Duel {idx+1}:**")
-                    keuze = st.radio(
-                        f"Wie wint: {c1} vs {c2}?", 
-                        [c1, c2], 
-                        key=f"h2h_duel_{idx}",
-                        horizontal=True
-                    )
-                    h2h_keuzes_dict[f"{c1}_vs_{c2}"] = keuze
-                    st.markdown("---")
+                # 4. Head-to-Head
+                st.subheader("4. Head-to-Head (15 pt)")
+                h2h_optie = st.selectbox(
+                    "Kies het duel:",
+                    ["Max Verstappen vs Lando Norris", "Charles Leclerc vs Oscar Piastri"],
+                    key="h2h_duel"
+                )
+                h2h_winnaar = st.radio("Wie verslaat wie in dit duel?", h2h_optie.split(" vs "), key="h2h_winnaar")
 
                 submit_voorspelling = st.form_submit_button(label="Mijn Voorspelling Opslaan")
 
                 if submit_voorspelling:
+                    h2h_key = h2h_optie.replace(" ", "_")
+                    
                     conn = sqlite3.connect('f1_poule.db')
                     cursor = conn.cursor()
-                    cursor.execute("SELECT id FROM voorspellingen WHERE deelnemer = ?", (huidige_gebruiker,))
+                    cursor.execute("SELECT id FROM voorspellingen WHERE email = ?", (huidige_email,))
                     bestaat = cursor.fetchone()
                     
                     if bestaat:
                         cursor.execute('''
                             UPDATE voorspellingen 
-                            SET kwali_top3 = ?, race_top5 = ?, fastest_lap = ?, driver_of_the_day = ?, dnf_coureurs = ?, h2h_keuzes = ?
-                            WHERE deelnemer = ?
+                            SET kwali_top5 = ?, race_top5 = ?, fastest_lap = ?, driver_of_the_day = ?, dnf_coureurs = ?, h2h_keuzes = ?
+                            WHERE email = ?
                         ''', (
-                            json.dumps(kwali_top3), json.dumps(race_top5), fastest_lap, driver_of_the_day, 
-                            json.dumps(dnf_coureurs), json.dumps(h2h_keuzes_dict), huidige_gebruiker
+                            json.dumps(kwali_top5), json.dumps(race_top5), fastest_lap, driver_of_the_day, 
+                            json.dumps(dnf_coureurs), json.dumps({h2h_key: h2h_winnaar}), huidige_email
                         ))
                     else:
                         cursor.execute('''
-                            INSERT INTO voorspellingen (deelnemer, kwali_top3, race_top5, fastest_lap, driver_of_the_day, dnf_coureurs, h2h_keuzes)
+                            INSERT INTO voorspellingen (email, kwali_top5, race_top5, fastest_lap, driver_of_the_day, dnf_coureurs, h2h_keuzes)
                             VALUES (?, ?, ?, ?, ?, ?, ?)
                         ''', (
-                            huidige_gebruiker, json.dumps(kwali_top3), json.dumps(race_top5), fastest_lap, 
-                            driver_of_the_day, json.dumps(dnf_coureurs), json.dumps(h2h_keuzes_dict)
+                            huidige_email, json.dumps(kwali_top5), json.dumps(race_top5), fastest_lap, 
+                            driver_of_the_day, json.dumps(dnf_coureurs), json.dumps({h2h_key: h2h_winnaar})
                         ))
                         
                     conn.commit()
@@ -177,7 +163,7 @@ with tab1:
         
         if auth_optie == "Nieuw account registreren":
             st.subheader("📝 Registreren voor de Poule")
-            st.info(f"Alle velden zijn verplicht! Als je registreert als '{ADMIN_NAAM}', krijg je automatisch beheerdersrechten.")
+            st.info(f"Alle velden zijn verplicht! Als je registreert met het e-mailadres '{ADMIN_EMAIL}', krijg je automatisch beheerdersrechten.")
             
             with st.form("form_register", clear_on_submit=True):
                 reg_naam = st.text_input("Jouw Volledige Naam *")
@@ -190,7 +176,7 @@ with tab1:
                     if not reg_naam.strip() or not reg_email.strip() or not reg_tel.strip() or not reg_ww.strip():
                         st.error("⚠️ Alle velden zijn verplicht! Vul alsjeblieft alles in.")
                     else:
-                        is_adm = 1 if reg_naam.strip().lower() == ADMIN_NAAM.lower() else 0
+                        is_adm = 1 if reg_email.strip().lower() == ADMIN_EMAIL.lower() else 0
                         is_goed = 1 if is_adm == 1 else 0
                         
                         try:
@@ -198,55 +184,58 @@ with tab1:
                             cursor = conn.cursor()
                             cursor.execute(
                                 "INSERT INTO gebruikers (naam, wachtwoord, email, telefoon, is_goedgekeurd, is_admin) VALUES (?, ?, ?, ?, ?, ?)",
-                                (reg_naam, reg_ww, reg_email, reg_tel, is_goed, is_adm)
+                                (reg_naam, reg_ww, reg_email.strip().lower(), reg_tel, is_goed, is_adm)
                             )
                             conn.commit()
                             conn.close()
                             st.success(f"Account voor {reg_naam} succesvol aangemaakt!")
                         except sqlite3.IntegrityError:
-                            st.error("⚠️ Deze naam bestaat al in het systeem. Kies een andere naam of log in.")
+                            st.error("⚠️ Dit e-mailadres bestaat al in het systeem. Kies een ander e-mailadres of log in.")
         
         else:
-            st.subheader("🔑 Inloggen")
+            st.subheader("🔑 Inloggen met E-mailadres")
             with st.form("form_login"):
-                login_naam = st.text_input("Jouw Naam")
+                login_email = st.text_input("Jouw E-mailadres")
                 login_ww = st.text_input("Jouw Wachtwoord", type="password")
                 login_submit = st.form_submit_button("Inloggen")
                 
                 if login_submit:
+                    clean_email = login_email.strip().lower()
                     conn = sqlite3.connect('f1_poule.db')
                     cursor = conn.cursor()
                     
                     # Als het om de beheerder gaat, zorgen we dat deze altijd bestaat en adminrechten heeft
-                    if login_naam.strip().lower() == ADMIN_NAAM.lower():
-                        cursor.execute("SELECT id FROM gebruikers WHERE naam = ?", (login_naam,))
+                    if clean_email == ADMIN_EMAIL.lower():
+                        cursor.execute("SELECT id FROM gebruikers WHERE email = ?", (clean_email,))
                         if not cursor.fetchone():
                             cursor.execute(
                                 "INSERT INTO gebruikers (naam, wachtwoord, email, telefoon, is_goedgekeurd, is_admin) VALUES (?, ?, ?, ?, 1, 1)",
-                                (ADMIN_NAAM, login_ww if login_ww else "305710", "j.kessels@fastphotos.nl", "06-50469615")
+                                ("Jurgen Kessels", login_ww if login_ww else "305710", ADMIN_EMAIL, "06-50469615")
                             )
                         else:
-                            cursor.execute("UPDATE gebruikers SET is_admin = 1, is_goedgekeurd = 1 WHERE naam = ?", (login_naam,))
+                            cursor.execute("UPDATE gebruikers SET is_admin = 1, is_goedgekeurd = 1 WHERE email = ?", (clean_email,))
                         conn.commit()
                     
-                    cursor.execute("SELECT wachtwoord, is_goedgekeurd, is_admin FROM gebruikers WHERE naam = ?", (login_naam,))
+                    cursor.execute("SELECT naam, wachtwoord, is_goedgekeurd, is_admin FROM gebruikers WHERE email = ?", (clean_email,))
                     res = cursor.fetchone()
                     conn.close()
                     
                     if not res:
-                        st.error("Gebruiker niet gevonden. Registreer je eerst via het tabje hierboven.")
-                    elif login_naam.strip().lower() != ADMIN_NAAM.lower() and res[0] != login_ww:
+                        st.error("Geen account gevonden met dit e-mailadres. Registreer je eerst via het tabje hierboven.")
+                    elif clean_email != ADMIN_EMAIL.lower() and res[1] != login_ww:
                         st.error("Onjuist wachtwoord!")
                     else:
-                        st.session_state["ingelogde_gebruiker"] = login_naam
+                        st.session_state["ingelogde_email"] = clean_email
+                        st.session_state["ingelogde_naam"] = res[0]
                         st.session_state["is_goedgekeurd"] = res[1]
-                        if login_naam.strip().lower() == ADMIN_NAAM.lower():
+                        
+                        if clean_email == ADMIN_EMAIL.lower():
                             st.session_state["is_admin"] = 1
                             st.session_state["is_goedgekeurd"] = 1
                         else:
-                            st.session_state["is_admin"] = res[2]
+                            st.session_state["is_admin"] = res[3]
                             
-                        st.success(f"Welkom terug, {login_naam}!")
+                        st.success(f"Welkom terug, {res[0]}!")
                         st.rerun()
 
 with tab2:
@@ -254,7 +243,7 @@ with tab2:
     st.write("Test hier of de puntentelling via `scoring.py` correct werkt op basis van een voorbeeld-uitslag.")
 
     uitslag_voorbeeld = {
-        "kwali_top3": ["Max Verstappen", "Lando Norris", "Charles Leclerc"],
+        "kwali_top5": ["Max Verstappen", "Lando Norris", "Charles Leclerc", "Oscar Piastri", "Lewis Hamilton"],
         "race_top5": ["Max Verstappen", "Charles Leclerc", "Lando Norris", "Oscar Piastri", "George Russell"],
         "fastest_lap": "Max Verstappen",
         "driver_of_the_day": "Lando Norris",
@@ -263,8 +252,8 @@ with tab2:
 
     if st.button("Bereken testpunten"):
         kwali_pnt = scoring.bereken_top5_punten(
-            ["Max Verstappen", "Lando Norris", "Charles Leclerc"], 
-            uitslag_voorbeeld["kwali_top3"]
+            ["Max Verstappen", "Lando Norris", "Charles Leclerc", "Oscar Piastri", "Lewis Hamilton"], 
+            uitslag_voorbeeld["kwali_top5"]
         )
         race_pnt = scoring.bereken_top5_punten(
             ["Max Verstappen", "Charles Leclerc", "Lando Norris", "Oscar Piastri", "George Russell"], 
@@ -274,12 +263,12 @@ with tab2:
             "fastest_lap": "Max Verstappen",
             "driver_of_the_day": "Lando Norris",
             "dnf_coureurs": ["Sergio Perez"],
-            "h2h_keuzes": {"Lewis_Hamilton_vs_Carlos_Sainz": "Lewis Hamilton"}
+            "h2h_keuzes": {"Max_Verstappen_vs_Lando_Norris": "Max Verstappen"}
         }, uitslag_voorbeeld)
         
         totaal = kwali_pnt + race_pnt + extra_pnt
         st.success(f"Totale punten berekend: {totaal}")
-        st.write(f"- Kwalificatie punten (Top 3): {kwali_pnt}")
+        st.write(f"- Kwalificatie punten: {kwali_pnt}")
         st.write(f"- Race punten: {race_pnt}")
         st.write(f"- Extra categorieën punten: {extra_pnt}")
 
@@ -320,7 +309,7 @@ if is_admin_ingelogd:
                             conn.commit()
                             st.rerun()
                     else:
-                        if g_naam.lower() != ADMIN_NAAM.lower():
+                        if g_email.lower() != ADMIN_EMAIL.lower():
                             if st.button(f"Ontneem Admin", key=f"rem_admin_{g_id}"):
                                 cursor.execute("UPDATE gebruikers SET is_admin = 0 WHERE id = ?", (g_id,))
                                 conn.commit()
@@ -331,10 +320,12 @@ if is_admin_ingelogd:
         st.subheader("🏁 Officiële Uitslag & Leaderboard Berekenen")
         
         with st.form("form_officiële_uitslag"):
-            st.subheader("1. Officiële Kwalificatie Top 3")
+            st.subheader("1. Officiële Kwalificatie Top 5")
             off_kwali = []
-            for i in range(1, 4):
-                off_kwali.append(st.selectbox(f"Officiële Kwalificatie P{i}", coureurs_lijst, key=f"off_kwali_p{i}"))
+            c1, c2 = st.columns(2)
+            for i in range(1, 6):
+                with c1 if i <= 3 else c2:
+                    off_kwali.append(st.selectbox(f"Officiële Kwalificatie P{i}", coureurs_lijst, key=f"off_kwali_p{i}"))
 
             st.subheader("2. Officiële Race Top 5")
             off_race = []
@@ -356,7 +347,7 @@ if is_admin_ingelogd:
 
             if bereken_leaderboard:
                 officiële_uitslag = {
-                    "kwali_top3": off_kwali,
+                    "kwali_top5": off_kwali,
                     "race_top5": off_race,
                     "fastest_lap": off_fl,
                     "driver_of_the_day": off_dotd,
@@ -365,7 +356,11 @@ if is_admin_ingelogd:
 
                 conn = sqlite3.connect('f1_poule.db')
                 cursor = conn.cursor()
-                cursor.execute("SELECT deelnemer, kwali_top3, race_top5, fastest_lap, driver_of_the_day, dnf_coureurs, h2h_keuzes FROM voorspellingen")
+                cursor.execute("""
+                    SELECT u.naam, v.kwali_top5, v.race_top5, v.fastest_lap, v.driver_of_the_day, v.dnf_coureurs, v.h2h_keuzes 
+                    FROM voorspellingen v
+                    JOIN gebruikers u ON v.email = u.email
+                """)
                 alle_voorspellingen = cursor.fetchall()
                 conn.close()
 
