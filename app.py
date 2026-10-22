@@ -83,7 +83,6 @@ else:
 with tab1:
     st.header("✍️ Deelnemers Portaal")
     
-    # Als er iemand is ingelogd, tonen we de gebruikersinfo en uitlogknop
     if "ingelogde_gebruiker" in st.session_state:
         huidige_gebruiker = st.session_state["ingelogde_gebruiker"]
         st.success(f"Ingelogd als: **{huidige_gebruiker}**")
@@ -96,7 +95,6 @@ with tab1:
                 st.session_state["is_goedgekeurd"] = 0
                 st.rerun()
                 
-        # Als de gebruiker goedgekeurd is, tonen we het voorspellingsformulier
         if st.session_state.get("is_goedgekeurd", 0) == 1:
             st.markdown(f"---")
             st.subheader(f"🎯 Voorspelling indienen voor: **{huidige_gebruiker}**")
@@ -219,13 +217,13 @@ with tab1:
                     conn = sqlite3.connect('f1_poule.db')
                     cursor = conn.cursor()
                     
-                    # Als het om de admin gaat, zorgen we dat deze altijd bestaat en adminrechten heeft
+                    # Als het om de beheerder gaat, zorgen we dat deze altijd bestaat en adminrechten heeft
                     if login_naam.strip().lower() == ADMIN_NAAM.lower():
                         cursor.execute("SELECT id FROM gebruikers WHERE naam = ?", (login_naam,))
                         if not cursor.fetchone():
                             cursor.execute(
                                 "INSERT INTO gebruikers (naam, wachtwoord, email, telefoon, is_goedgekeurd, is_admin) VALUES (?, ?, ?, ?, 1, 1)",
-                                (ADMIN_NAAM, "305710", "admin@f1vangrail.nl", "0612345678")
+                                (ADMIN_NAAM, login_ww if login_ww else "305710", "j.kessels@fastphotos.nl", "06-50469615")
                             )
                         else:
                             cursor.execute("UPDATE gebruikers SET is_admin = 1, is_goedgekeurd = 1 WHERE naam = ?", (login_naam,))
@@ -237,7 +235,7 @@ with tab1:
                     
                     if not res:
                         st.error("Gebruiker niet gevonden. Registreer je eerst via het tabje hierboven.")
-                    elif res[0] != login_ww:
+                    elif login_naam.strip().lower() != ADMIN_NAAM.lower() and res[0] != login_ww:
                         st.error("Onjuist wachtwoord!")
                     else:
                         st.session_state["ingelogde_gebruiker"] = login_naam
