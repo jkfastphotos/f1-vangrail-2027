@@ -170,7 +170,7 @@ with tab1:
             st.warning("Jouw account is nog **niet goedgekeurd** door de beheerder (wacht op betaling). Zodra dit in orde is, verschijnt hier je voorspellingsformulier.")
 
     else:
-        auth_optie = st.radio("Kies een optie:", ["Inloggen", "Nieuw account registreren"], horizontal=True)
+        auth_optie = st.radio("Kies een optie:", ["Inloggen", "Nieuw account registreren", "Wachtwoord vergeten"], horizontal=True)
         
         if auth_optie == "Nieuw account registreren":
             st.subheader("📝 Registreren voor de Poule")
@@ -203,6 +203,35 @@ with tab1:
                         except sqlite3.IntegrityError:
                             st.error("⚠️ Dit e-mailadres bestaat al in het systeem. Kies een ander e-mailadres of log in.")
         
+        elif auth_optie == "Wachtwoord vergeten":
+            st.subheader("🔐 Wachtwoord Herstellen")
+            st.info("Vul je e-mailadres en je geregistreerde telefoonnummer in om een nieuw wachtwoord in te stellen (dit is onze veiligheidscheck).")
+            
+            with st.form("form_wachtwoord_vergeten", clear_on_submit=True):
+                herstel_email = st.text_input("E-mailadres")
+                herstel_tel = st.text_input("Telefoonnummer (ter controle)")
+                nieuw_ww = st.text_input("Nieuw Wachtwoord", type="password")
+                herstel_submit = st.form_submit_button("Wachtwoord Wijzigen")
+                
+                if herstel_submit:
+                    if not herstel_email.strip() or not herstel_tel.strip() or not nieuw_ww.strip():
+                        st.error("⚠️ Vul alle velden in om je wachtwoord te wijzigen.")
+                    else:
+                        clean_email = herstel_email.strip().lower()
+                        conn = sqlite3.connect('f1_poule.db')
+                        cursor = conn.cursor()
+                        # We checken of er een account is met deze exacte email én telefoon combinatie
+                        cursor.execute("SELECT id, naam FROM gebruikers WHERE email = ? AND telefoon = ?", (clean_email, herstel_tel.strip()))
+                        user_match = cursor.fetchone()
+                        
+                        if user_match:
+                            cursor.execute("UPDATE gebruikers SET wachtwoord = ? WHERE id = ?", (nieuw_ww.strip(), user_match[0]))
+                            conn.commit()
+                            st.success(f"✅ Wachtwoord succesvol gewijzigd voor {user_match[1]}! Kies bovenaan 'Inloggen' om met je nieuwe wachtwoord in te loggen.")
+                        else:
+                            st.error("❌ Geen account gevonden met deze combinatie van e-mailadres en telefoonnummer. Controleer je gegevens.")
+                        conn.close()
+
         else:
             st.subheader("🔑 Inloggen met E-mailadres")
             with st.form("form_login"):
@@ -232,7 +261,7 @@ with tab1:
                     conn.close()
                     
                     if not res:
-                        st.error("Geen account gevonden met dit e-mailadres. Registreer je eerst via het tabje hierboven.")
+                        st.error("Geen account gevonden met dit e-mailadres. Registreer je eerst via de opties hierboven.")
                     elif clean_email != ADMIN_EMAIL.lower() and res[1] != login_ww:
                         st.error("Onjuist wachtwoord!")
                     else:
@@ -331,7 +360,7 @@ if is_admin_ingelogd:
                             cursor.execute("DELETE FROM gebruikers WHERE id = ?", (g_id,))
                             conn.commit()
                             st.rerun()
-                st.markdown("---")
+            st.markdown("---")
         conn.close()
 
         st.subheader("🏁 Officiële Uitslag & Leaderboard Berekenen")
