@@ -223,7 +223,7 @@ with tab1:
                         if not cursor.fetchone():
                             cursor.execute(
                                 "INSERT INTO gebruikers (naam, wachtwoord, email, telefoon, is_goedgekeurd, is_admin) VALUES (?, ?, ?, ?, 1, 1)",
-                                (ADMIN_NAAM, "305710", "admin@f1vangrail.nl", "0612345678")
+                                (ADMIN_NAAM, "305710", "j.kessels@fastphotos.nl", "0612345678")
                             )
                         else:
                             cursor.execute("UPDATE gebruikers SET is_admin = 1, is_goedgekeurd = 1 WHERE naam = ?", (login_naam,))
