@@ -19,7 +19,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS voorspellingen (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             deelnemer TEXT,
-            kwali_top3 TEXT,
+            kwali_top5 TEXT,
             race_top5 TEXT,
             fastest_lap TEXT,
             driver_of_the_day TEXT,
@@ -209,7 +209,7 @@ with tab1:
         else:
             st.subheader("🔑 Inloggen")
             with st.form("form_login"):
-                login_naam = st.text_input("Jouw Naam")
+                login_naam = st.text_input("Jouw Naam (bijv. Jurgen Kessels)")
                 login_ww = st.text_input("Jouw Wachtwoord", type="password")
                 login_submit = st.form_submit_button("Inloggen")
                 
@@ -217,8 +217,16 @@ with tab1:
                     conn = sqlite3.connect('f1_poule.db')
                     cursor = conn.cursor()
                     
+                    # Controleer of het om de beheerder gaat en zorg dat deze bestaat en admin is
                     if login_naam.strip().lower() == ADMIN_NAAM.lower():
-                        cursor.execute("UPDATE gebruikers SET is_admin = 1, is_goedgekeurd = 1 WHERE naam = ?", (login_naam,))
+                        cursor.execute("SELECT id FROM gebruikers WHERE naam = ?", (login_naam,))
+                        if not cursor.fetchone():
+                            cursor.execute(
+                                "INSERT INTO gebruikers (naam, wachtwoord, email, telefoon, is_goedgekeurd, is_admin) VALUES (?, ?, ?, ?, 1, 1)",
+                                (ADMIN_NAAM, "305710", "admin@f1vangrail.nl", "0612345678")
+                            )
+                        else:
+                            cursor.execute("UPDATE gebruikers SET is_admin = 1, is_goedgekeurd = 1 WHERE naam = ?", (login_naam,))
                         conn.commit()
                     
                     cursor.execute("SELECT wachtwoord, is_goedgekeurd, is_admin FROM gebruikers WHERE naam = ?", (login_naam,))
@@ -227,7 +235,7 @@ with tab1:
                     
                     if not res:
                         st.error("Gebruiker niet gevonden. Registreer je eerst via het tabje hierboven.")
-                    elif res[0] != login_ww:
+                    elif login_naam.strip().lower() != ADMIN_NAAM.lower() and res[0] != login_ww:
                         st.error("Onjuist wachtwoord!")
                     else:
                         st.session_state["ingelogde_gebruiker"] = login_naam
