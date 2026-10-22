@@ -11,10 +11,10 @@ ADMIN_NAAM = "Jurgen Kessels"
 
 # --- DATABASE INITIALISATIE ---
 def init_db():
-    
-conn = sqlite3.connect('f1_poule.db')
-cursor = conn.cursor()
-cursor.execute("UPDATE gebruikers SET email = ?, telefoon = ? WHERE naam = ?", 
+   
+    conn = sqlite3.connect('f1_poule.db')
+    cursor = conn.cursor()
+    cursor.execute("UPDATE gebruikers SET email = ?, telefoon = ? WHERE naam = ?", 
                ("j.kessels@fastphotos.nl", "06-50469615", "Jurgen Kessels"))
 conn.commit()
 conn.close()
