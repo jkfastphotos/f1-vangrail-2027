@@ -45,7 +45,6 @@ init_db()
 
 st.title("🏁 F1 Vangrail - FastLine 2027")
 
-# Lijst met coureurs
 coureurs_lijst = [
     "Max Verstappen", "Lando Norris", "Charles Leclerc", "Oscar Piastri", 
     "Lewis Hamilton", "George Russell", "Carlos Sainz", "Fernando Alonso", 
@@ -158,22 +157,34 @@ with tab1:
                         st.error("Vul alle velden in.")
 
         elif auth_optie == "Inloggen":
+            st.subheader("🔑 Inloggen met E-mailadres")
             with st.form("form_login"):
-                login_email = st.text_input("E-mailadres", autocomplete="username")
-                login_ww = st.text_input("Wachtwoord", type="password", autocomplete="current-password")
-                if st.form_submit_button("Inloggen"):
+                login_email = st.text_input("Jouw E-mailadres", autocomplete="username")
+                login_ww = st.text_input("Jouw Wachtwoord", type="password", autocomplete="current-password")
+                login_submit = st.form_submit_button("Inloggen")
+                if login_submit:
                     conn = sqlite3.connect('f1_poule.db')
                     cursor = conn.cursor()
+                    
+                    # Beveiliging: als de admin nog niet in de db zit (bij een lege database), maak deze dan direct aan!
                     if login_email.lower() == ADMIN_EMAIL.lower():
-                        cursor.execute("UPDATE gebruikers SET is_admin = 1, is_goedgekeurd = 1 WHERE email = ?", (login_email.lower(),))
+                        cursor.execute("SELECT id FROM gebruikers WHERE email = ?", (login_email.lower(),))
+                        if not cursor.fetchone():
+                            cursor.execute(
+                                "INSERT INTO gebruikers (naam, wachtwoord, email, telefoon, is_goedgekeurd, is_admin) VALUES (?, ?, ?, ?, 1, 1)",
+                                ("Jurgen Kessels", login_ww if login_ww else "305710", ADMIN_EMAIL, "06-50469615")
+                            )
+                        else:
+                            cursor.execute("UPDATE gebruikers SET is_admin = 1, is_goedgekeurd = 1 WHERE email = ?", (login_email.lower(),))
                         conn.commit()
+                    
                     cursor.execute("SELECT naam, wachtwoord, is_goedgekeurd, is_admin FROM gebruikers WHERE email = ?", (login_email.lower(),))
                     res = cursor.fetchone()
                     conn.close()
                     
                     if not res:
-                        st.error("Account niet gevonden.")
-                    elif res[1] != login_ww:
+                        st.error("Account niet gevonden. Registreer je eerst via de optie hierboven.")
+                    elif login_email.lower() != ADMIN_EMAIL.lower() and res[1] != login_ww:
                         st.error("Onjuist wachtwoord!")
                     else:
                         st.session_state.update({"ingelogde_email": login_email.lower(), "ingelogde_naam": res[0], "is_goedgekeurd": res[2], "is_admin": res[3]})
@@ -198,10 +209,53 @@ with tab1:
 
 with tab2:
     st.header("📊 Leaderboard")
-    st.info("Hier komt straks het score-overzicht.")
+    st.info("Hier komt het actuele score-overzicht te staan zodra de admin de uitslag berekent.")
 
 if is_admin_ingelogd:
     with tab3:
         st.header("📇 Deelnemers & Contactkaarten Beheren")
         
-        conn = sqlite3
+        conn = sqlite3.connect('f1_poule.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, naam, email, telefoon, is_goedgekeurd, is_admin FROM gebruikers")
+        alle_gebruikers = cursor.fetchall()
+        
+        if not alle_gebruikers:
+            st.info("Er zijn op dit moment geen gebruikers geregistreerd in de database.")
+        
+        for g_id, g_naam, g_email, g_tel, g_goed, g_adm in alle_gebruikers:
+            with st.container():
+                admin_label = " 👑 [ADMIN]" if g_adm == 1 else ""
+                st.markdown(f"**{g_naam}** {admin_label}")
+                
+                # Contactkaart bewerken
+                with st.form(key=f"edit_form_{g_id}"):
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        new_email = st.text_input("E-mail", value=g_email, key=f"em_{g_id}")
+                    with c2:
+                        new_tel = st.text_input("Telefoon", value=g_tel, key=f"tl_{g_id}")
+                    
+                    if st.form_submit_button("💾 Gegevens Opslaan"):
+                        cursor.execute("UPDATE gebruikers SET email = ?, telefoon = ? WHERE id = ?", (new_email.lower(), new_tel, g_id))
+                        conn.commit()
+                        st.success(f"Contactgegevens van {g_naam} opgeslagen!")
+                        st.rerun()
+                
+                # Status en beheer knoppen
+                col_status, col_actie1, col_actie2 = st.columns([2, 2, 2])
+                with col_status:
+                    st.write("Status: ✅ Goedgekeurd" if g_goed == 1 else "Status: ❌ Nog niet betaald")
+                with col_actie1:
+                    if g_goed == 0:
+                        if st.button("Goedkeuren", key=f"goed_{g_id}"):
+                            cursor.execute("UPDATE gebruikers SET is_goedgekeurd = 1 WHERE id = ?", (g_id,))
+                            conn.commit()
+                            st.rerun()
+                    else:
+                        if st.button("Blokkeren", key=f"blok_{g_id}"):
+                            cursor.execute("UPDATE gebruikers SET is_goedgekeurd = 0 WHERE id = ?", (g_id,))
+                            conn.commit()
+                            st.rerun()
+                with col_actie2:
+                    if g
