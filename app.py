@@ -440,6 +440,7 @@ if is_admin_ingelogd:
             
             if st.button("📥 Haal meest recente F1 uitslag op via API"):
                 try:
+                    # 1. Haal race-uitslagen op
                     api_url = "https://api.jolpi.ca/ergast/f1/current/last/results.json"
                     response = requests.get(api_url)
                     data = response.json()
@@ -455,12 +456,12 @@ if is_admin_ingelogd:
                                 return c
                         return coureurs_lijst[0]
 
-                    # 1. Koppel Top 5 en update de session state direct voor de velden
+                    # Koppel Race Top 5
                     top5_api = [uitslagen[i]['Driver']['familyName'] for i in range(min(5, len(uitslagen)))]
                     for i, fam_naam in enumerate(top5_api, 1):
                         st.session_state[f"o_race_{i}"] = match_coureur(fam_naam)
                         
-                    # 2. Koppel DNF's en update session state
+                    # Koppel DNF's
                     dnf_api = []
                     matched_dnf = []
                     for u in uitslagen:
@@ -470,7 +471,7 @@ if is_admin_ingelogd:
                             matched_dnf.append(match_coureur(fam_naam))
                     st.session_state["o_dnf"] = matched_dnf
                             
-                    # 3. Koppel Fastest Lap en update session state
+                    # Koppel Fastest Lap
                     fl_api = "Onbekend"
                     for u in uitslagen:
                         if 'FastestLap' in u and u['FastestLap'].get('rank') == '1':
@@ -478,11 +479,24 @@ if is_admin_ingelogd:
                             st.session_state["o_fl"] = match_coureur(fl_api)
                             break
 
-                    st.success(f"Uitslag van {actuele_race_naam} succesvol gedownload én ingevuld in de velden hieronder!")
-                    st.write(f"**Top 5 API:** {', '.join(top5_api)}")
+                    # 2. Haal ook Kwalificatie-uitslagen op via qualifying.json
+                    qual_url = "https://api.jolpi.ca/ergast/f1/current/last/qualifying.json"
+                    qual_response = requests.get(qual_url)
+                    qual_data = qual_response.json()
+                    try:
+                        qual_results = qual_data['MRData']['RaceTable']['Races'][0]['QualifyingResults']
+                        kwali_top3_api = [qual_results[i]['Driver']['familyName'] for i in range(min(3, len(qual_results)))]
+                        for i, fam_naam in enumerate(kwali_top3_api, 1):
+                            st.session_state[f"o_kwali_{i}"] = match_coureur(fam_naam)
+                    except Exception:
+                        pass
+
+                    st.success(f"Uitslag én Kwalificatie van {actuele_race_naam} succesvol gedownload en ingevuld!")
+                    st.write(f"**Kwalificatie API (Top 3):** {', '.join(kwali_top3_api) if 'kwali_top3_api' in locals() else 'Niet beschikbaar'}")
+                    st.write(f"**Race API (Top 5):** {', '.join(top5_api)}")
                     st.write(f"**Fastest Lap API:** {fl_api}")
                     st.write(f"**Uitvallers (DNF):** {', '.join(dnf_api)}")
-                    st.warning("⚠️ Let op: 'Driver of the Day' en Kwalificatie zitten niet standaard in de automatische API. Controleer de automatisch ingevulde velden, vul de ontbrekende in, en klik op Opslaan!")
+                    st.warning("⚠️ Let op: 'Driver of the Day' zit niet in de automatische API en moet je handmatig selecteren. Controleer de velden en klik onderaan op Slaan & Bereken!")
                 except Exception as e:
                     st.error(f"Er ging iets mis met het ophalen via de API. Probeer het later opnieuw. (Error: {e})")
 
