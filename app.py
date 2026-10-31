@@ -271,22 +271,94 @@ if is_admin_ingelogd:
         admin_tab1, admin_tab2, admin_tab3, admin_tab4 = st.tabs(["👥 Deelnemers", "🏎️ Coureurs", "📅 Kalender", "🏁 Uitslag & Stand"])
         
         with admin_tab1:
-            st.subheader("Deelnemers & Betalingen")
-            conn = sqlite3.connect('f1_poule.db')
-            cursor = conn.cursor()
-            cursor.execute("SELECT id, naam, email, telefoon, is_goedgekeurd, is_admin FROM gebruikers")
-            for g_id, g_naam, g_email, g_tel, g_goed, g_adm in cursor.fetchall():
-                st.write(f"**{g_naam}** | E-mail: {g_email} | Tel: {g_tel} | Status: {'✅' if g_goed else '❌'}")
-                c1, c2, c3 = st.columns(3)
-                if c1.button("Toggle Goedkeuring", key=f"tg_{g_id}"):
-                    cursor.execute("UPDATE gebruikers SET is_goedgekeurd = ? WHERE id = ?", (0 if g_goed else 1, g_id))
-                    conn.commit()
-                    st.rerun()
-                if c2.button("Verwijder", key=f"del_{g_id}"):
-                    cursor.execute("DELETE FROM gebruikers WHERE id = ?", (g_id,))
-                    conn.commit()
-                    st.rerun()
-            conn.close()
+                st.subheader("👥 Deelnemers, Betalingen & Contactkaarten")
+                conn = sqlite3.connect('f1_poule.db')
+                cursor = conn.cursor()
+                cursor.execute("SELECT id, naam, email, telefoon, is_goedgekeurd, is_admin FROM gebruikers")
+                alle_gebruikers = cursor.fetchall()
+                conn.close()
+
+                for g_id, g_naam, g_email, g_tel, g_goed, g_adm in alle_gebruikers:
+                    admin_label = " 👑 [ADMIN]" if g_adm == 1 else ""
+                    status_txt = "✅ Goedgekeurd" if g_goed == 1 else "❌ Nog niet betaald"
+                    
+                    with st.container():
+                        st.markdown(f"### 👤 {g_naam} {admin_label}")
+                        st.write(status_txt)
+
+                        # Formulier om contactgegevens te bewerken
+                        with st.form(key=f"form_bewerk_user_{g_id}"):
+                            col_e, col_t = st.columns(2)
+                            with col_e:
+                                nieuwe_email = st.text_input("E-mailadres", value=g_email, key=f"email_{g_id}")
+                            with col_t:
+                                nieuwe_tel = st.text_input("Telefoonnummer", value=g_tel if g_tel else "", key=f"tel_{g_id}")
+
+                            opslaan_gegewens = st.form_submit_button(label=f"💾 Wijzigingen opslaan")
+
+                            if opslaan_gegewens:
+                                conn_w = sqlite3.connect('f1_poule.db')
+                                cursor_w = conn_w.cursor()
+                                try:
+                                    cursor_w.execute(
+                                        "UPDATE gebruikers SET email = ?, telefoon = ? WHERE id = ?",
+                                        (nieuwe_email.strip().lower(), nieuwe_tel.strip(), g_id)
+                                    )
+                                    conn_w.commit()
+                                    conn_w.close()
+                                    st.success(f"Contactgegevens voor {g_naam} bijgewerkt!")
+                                    st.rerun()
+                                except sqlite3.IntegrityError:
+                                    conn_w.close()
+                                    st.error("⚠️ Dit e-mailadres is al in gebruik.")
+
+                        # Knoppen voor goedkeuren, admin maken en verwijderen
+                        col_actie1, col_actie2, col_actie3 = st.columns(3)
+                        conn_actie = sqlite3.connect('f1_poule.db')
+                        cursor_actie = conn_actie.cursor()
+
+                        with col_actie1:
+                            if g_goed == 0:
+                                if st.button("Goedkeuren", key=f"goed_{g_id}"):
+                                    cursor_actie.execute("UPDATE gebruikers SET is_goedgekeurd = 1 WHERE id = ?", (g_id,))
+                                    conn_actie.commit()
+                                    conn_actie.close()
+                                    st.rerun()
+                            else:
+                                if st.button("Blokkeren", key=f"blok_{g_id}"):
+                                    cursor_actie.execute("UPDATE gebruikers SET is_goedgekeurd = 0 WHERE id = ?", (g_id,))
+                                    conn_actie.commit()
+                                    conn_actie.close()
+                                    st.rerun()
+
+                        with col_actie2:
+                            if g_adm == 0:
+                                if st.button("Maak Admin", key=f"makest_admin_{g_id}"):
+                                    cursor_actie.execute("UPDATE gebruikers SET is_admin = 1 WHERE id = ?", (g_id,))
+                                    conn_actie.commit()
+                                    conn_actie.close()
+                                    st.rerun()
+                            else:
+                                if g_email.lower() != ADMIN_EMAIL.lower():
+                                    if st.button("Ontneem Admin", key=f"rem_admin_{g_id}"):
+                                        cursor_actie.execute("UPDATE gebruikers SET is_admin = 0 WHERE id = ?", (g_id,))
+                                        conn_actie.commit()
+                                        conn_actie.close()
+                                        st.rerun()
+
+                        with col_actie3:
+                            if g_email.lower() != ADMIN_EMAIL.lower():
+                                if st.button("🗑️ Verwijder", key=f"del_user_{g_id}"):
+                                    cursor_actie.execute("DELETE FROM gebruikers WHERE id = ?", (g_id,))
+                                    conn_actie.commit()
+                                    conn_actie.close()
+                                    st.rerun()
+                        
+                        try:
+                            conn_actie.close()
+                        except:
+                            pass
+                        st.markdown("---")
 
         with admin_tab2:
             st.subheader("Coureurs Beheren")
