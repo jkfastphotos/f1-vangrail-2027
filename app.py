@@ -377,4 +377,181 @@ if is_admin_ingelogd:
                     try:
                         cursor.execute("INSERT INTO coureurs (naam) VALUES (?)", (nieuwe_coureur.strip(),))
                         conn.commit()
-                        st.success(f
+                        st.success(f"{nieuwe_coureur} toegevoegd!")
+                    except sqlite3.IntegrityError:
+                        st.error("Deze coureur bestaat al.")
+                    conn.close()
+                    st.rerun()
+                    
+            st.write("Huidige coureurs:")
+            conn = sqlite3.connect('f1_poule.db')
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, naam FROM coureurs ORDER BY naam")
+            for c_id, c_naam in cursor.fetchall():
+                col1, col2 = st.columns([4, 1])
+                col1.write(c_naam)
+                if col2.button("🗑️", key=f"del_c_{c_id}"):
+                    cursor.execute("DELETE FROM coureurs WHERE id = ?", (c_id,))
+                    conn.commit()
+                    st.rerun()
+            conn.close()
+
+        with admin_tab3:
+            st.subheader("Kalender Beheren")
+            with st.form("form_add_race"):
+                nieuwe_race = st.text_input("Naam nieuwe Grand Prix (bijv. 'Zandvoort GP'):")
+                is_nieuw_sprint = st.checkbox("Dit is een Sprintweekend ⚡")
+                if st.form_submit_button("Toevoegen") and nieuwe_race:
+                    conn = sqlite3.connect('f1_poule.db')
+                    cursor = conn.cursor()
+                    try:
+                        cursor.execute("INSERT INTO kalender (race_naam, is_sprint) VALUES (?, ?)", (nieuwe_race.strip(), 1 if is_nieuw_sprint else 0))
+                        conn.commit()
+                        st.success(f"{nieuwe_race} toegevoegd!")
+                    except sqlite3.IntegrityError:
+                        st.error("Deze race bestaat al.")
+                    conn.close()
+                    st.rerun()
+            
+            st.write("Huidige kalender:")
+            conn = sqlite3.connect('f1_poule.db')
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, race_naam, is_sprint FROM kalender")
+            for r_id, r_naam, is_spr in cursor.fetchall():
+                col1, col2, col3 = st.columns([3, 1, 1])
+                col1.write(f"**{r_naam}**")
+                if col2.button("⚡ Wissel Sprint", key=f"spr_{r_id}"):
+                    cursor.execute("UPDATE kalender SET is_sprint = ? WHERE id = ?", (0 if is_spr else 1, r_id))
+                    conn.commit()
+                    st.rerun()
+                if col3.button("🗑️", key=f"del_r_{r_id}"):
+                    cursor.execute("DELETE FROM kalender WHERE id = ?", (r_id,))
+                    conn.commit()
+                    st.rerun()
+            conn.close()
+
+        with admin_tab4:
+            st.subheader("Officiële Uitslag Invoeren & Ophalen")
+            gekozen_uitslag_race = st.selectbox("Selecteer race voor uitslag:", race_namen, key="uitslag_select")
+            
+            is_uitslag_sprint = any(r[1] == gekozen_uitslag_race and r[2] == 1 for r in kalender_lijst)
+            
+            st.info("💡 Je kunt de data handmatig invullen óf automatisch van internet plukken via de knop hieronder.")
+            
+            if st.button("📥 Haal meest recente F1 uitslag op via API"):
+                try:
+                    api_url = "https://api.jolpi.ca/ergast/f1/current/last/results.json"
+                    response = requests.get(api_url)
+                    data = response.json()
+                    
+                    race_info = data['MRData']['RaceTable']['Races'][0]
+                    actuele_race_naam = race_info['raceName']
+                    uitslagen = race_info['Results']
+                    
+                    # Hulpfunctie om API-achternaam te koppelen aan de volledige coureursnaam in de app
+                    def match_coureur(achternaam):
+                        for c in coureurs_lijst:
+                            if achternaam.lower() in c.lower():
+                                return c
+                        return coureurs_lijst[0]
+
+                    # 1. Koppel Top 5 en update de session state direct voor de velden
+                    top5_api = [uitslagen[i]['Driver']['familyName'] for i in range(min(5, len(uitslagen)))]
+                    for i, fam_naam in enumerate(top5_api, 1):
+                        st.session_state[f"o_race_{i}"] = match_coureur(fam_naam)
+                        
+                    # 2. Koppel DNF's en update session state
+                    dnf_api = []
+                    matched_dnf = []
+                    for u in uitslagen:
+                        if u['status'] not in ['Finished', '+1 Lap', '+2 Laps']:
+                            fam_naam = u['Driver']['familyName']
+                            dnf_api.append(fam_naam)
+                            matched_dnf.append(match_coureur(fam_naam))
+                    st.session_state["o_dnf"] = matched_dnf
+                            
+                    # 3. Koppel Fastest Lap en update session state
+                    fl_api = "Onbekend"
+                    for u in uitslagen:
+                        if 'FastestLap' in u and u['FastestLap'].get('rank') == '1':
+                            fl_api = u['Driver']['familyName']
+                            st.session_state["o_fl"] = match_coureur(fl_api)
+                            break
+
+                    st.success(f"Uitslag van {actuele_race_naam} succesvol gedownload én ingevuld in de velden hieronder!")
+                    st.write(f"**Top 5 API:** {', '.join(top5_api)}")
+                    st.write(f"**Fastest Lap API:** {fl_api}")
+                    st.write(f"**Uitvallers (DNF):** {', '.join(dnf_api)}")
+                    st.warning("⚠️ Let op: 'Driver of the Day' en Kwalificatie zitten niet standaard in de automatische API. Controleer de automatisch ingevulde velden, vul de ontbrekende in, en klik op Opslaan!")
+                except Exception as e:
+                    st.error(f"Er ging iets mis met het ophalen via de API. Probeer het later opnieuw. (Error: {e})")
+
+            with st.form("form_officiële_uitslag"):
+                if is_uitslag_sprint:
+                    st.write("⚡ Officiële Sprint Kwalificatie")
+                    off_spr_kwali = [st.selectbox(f"P{i}", coureurs_lijst, key=f"o_sq_{i}") for i in range(1, 4)]
+                    st.write("⚡ Officiële Sprintrace")
+                    off_spr_race = [st.selectbox(f"P{i}", coureurs_lijst, key=f"o_sr_{i}") for i in range(1, 6)]
+                
+                st.write("1. Officiële Kwalificatie Top 3")
+                off_kwali = [st.selectbox(f"P{i}", coureurs_lijst, key=f"o_kwali_{i}") for i in range(1, 4)]
+                
+                st.write("2. Officiële Race Top 5")
+                off_race = [st.selectbox(f"P{i}", coureurs_lijst, key=f"o_race_{i}") for i in range(1, 6)]
+
+                st.write("3. Extra Categorieën")
+                off_fl = st.selectbox("Fastest Lap", coureurs_lijst, key="o_fl")
+                off_dotd = st.selectbox("Driver of the Day", coureurs_lijst, key="o_dotd")
+                off_dnf = st.multiselect("Uitvallers (DNF)", coureurs_lijst, key="o_dnf")
+                
+                if st.form_submit_button("Sla Uitslag op & Bereken Leaderboard"):
+                    officiële_uitslag = {
+                        "kwali_top3": off_kwali,
+                        "race_top5": off_race,
+                        "fastest_lap": off_fl,
+                        "driver_of_the_day": off_dotd,
+                        "dnf_coureurs": off_dnf
+                    }
+
+                    conn_s = sqlite3.connect('f1_poule.db')
+                    cursor_s = conn_s.cursor()
+                    cursor_s.execute("""
+                        SELECT u.naam, v.kwali_top3, v.race_top5, v.fastest_lap, v.driver_of_the_day, v.dnf_coureurs, v.h2h_keuzes 
+                        FROM voorspellingen v
+                        JOIN gebruikers u ON v.email = u.email
+                        WHERE v.race_naam = ?
+                    """, (gekozen_uitslag_race,))
+                    alle_voorspellingen = cursor_s.fetchall()
+                    conn_s.close()
+
+                    if not alle_voorspellingen:
+                        st.warning("Er zijn nog geen voorspellingen ingediend voor deze race!")
+                    else:
+                        st.subheader(f"🏆 Uitslag voor {gekozen_uitslag_race}")
+                        resultaten_lijst = []
+                        for row in alle_voorspellingen:
+                            deelnemer, v_kwali, v_race, v_fl, v_dotd, v_dnf, v_h2h = row
+                            
+                            v_kwali_list = json.loads(v_kwali) if v_kwali else []
+                            v_race_list = json.loads(v_race) if v_race else []
+                            v_dnf_list = json.loads(v_dnf) if v_dnf else []
+                            v_h2h_dict = json.loads(v_h2h) if v_h2h else {}
+                            
+                            pnt_kwali = scoring.bereken_top5_punten(v_kwali_list, off_kwali)
+                            pnt_race = scoring.bereken_top5_punten(v_race_list, off_race)
+                            
+                            voorspelling_dict = {
+                                "fastest_lap": v_fl,
+                                "driver_of_the_day": v_dotd,
+                                "dnf_coureurs": v_dnf_list,
+                                "h2h_keuzes": v_h2h_dict
+                            }
+                            pnt_extra = scoring.bereken_race_gebeurtenissen(voorspelling_dict, officiële_uitslag)
+                            
+                            totaal_score = pnt_kwali + pnt_race + pnt_extra
+                            resultaten_lijst.append({"Deelnemer": deelnemer, "Punten": totaal_score, "Kwali": pnt_kwali, "Race": pnt_race, "Extra": pnt_extra})
+
+                        resultaten_lijst = sorted(resultaten_lijst, key=lambda x: x["Punten"], reverse=True)
+
+                        for idx, res in enumerate(resultaten_lijst, 1):
+                            st.write(f"**{idx}. {res['Deelnemer']}** — Totaal: **{res['Punten']} punten** *(Kwali: {res['Kwali']}, Race: {res['Race']}, Extra: {res['Extra']})*")
