@@ -4,6 +4,44 @@ import json
 import scoring
 import requests
 
+# --- F1 STYLING (CUSTOM CSS) ---
+st.markdown("""
+    <style>
+    /* Achtergrondkleur en algemene stijl */
+    .stApp {
+        background-color: #0e1117;
+        color: #ffffff;
+    }
+    
+    /* Strakke styling voor knoppen (F1 rood met witte letters) */
+    .stButton>button {
+        background-color: #e10600;
+        color: white;
+        border-radius: 4px;
+        font-weight: bold;
+        border: none;
+        width: 100%;
+    }
+    .stButton>button:hover {
+        background-color: #ff1801;
+        color: white;
+    }
+    
+    /* Formulieren en containers een subtiele omlijsting geven */
+    [data-testid="stForm"] {
+        background-color: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        padding: 20px;
+    }
+    
+    /* Subtiele styling voor headers */
+    h1, h2, h3 {
+        color: #f0f6fc;
+        font-family: 'Helvetica Neue', sans-serif;
+    }
+    </style>
+""", unsafe_allow_html=True)
 # Pagina configuratie
 st.set_page_config(page_title="F1 Vangrail - FastLine 2027", layout="wide")
 
